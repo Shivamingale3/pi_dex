@@ -1,54 +1,15 @@
 import logging
-import threading
 from datetime import datetime
 
-from pidex.core.bus import EventBus
-from pidex.core.constants import EVENT_REBOOT_STARTED, EVENT_SHUTDOWN_STARTED, SEVERITY_WARN, SOURCE_SHUTDOWN
+from pidex.config.loader import get_telegram_config, load_config
+from pidex.core.constants import EVENT_SHUTDOWN_STARTED, SEVERITY_WARN, SOURCE_SHUTDOWN
 from pidex.core.event import Event
-from pidex.sources.base import BaseSource
-
-logger = logging.getLogger(__name__)
-
-
-class ShutdownSource(BaseSource):
-    def __init__(self, bus: EventBus, config: dict):
-        super().__init__(bus, config)
-        self._triggered = False
-
-    def run(self, stop_event: threading.Event) -> None:
-        while not stop_event.is_set():
-            stop_event.wait(0.5)
-
-        if self._triggered:
-            return
-        self._triggered = True
-
-        logger.info("Sending shutdown notification")
-        self._bus.publish(Event(
-            source=SOURCE_SHUTDOWN,
-            event_type=EVENT_SHUTDOWN_STARTED,
-            severity=SEVERITY_WARN,
-            title="Shutdown Initiated",
-            message="PiDex daemon is shutting down",
-        ))
-
-
-def send_reboot_event(bus: EventBus) -> None:
-    bus.publish(Event(
-        source=SOURCE_SHUTDOWN,
-        event_type=EVENT_REBOOT_STARTED,
-        severity=SEVERITY_WARN,
-        title="Reboot Initiated",
-        message="System rebooting",
-    ))
+from pidex.notifiers.telegram import TelegramNotifier
 
 
 def main() -> None:
     """Entry point for pidex-shutdown script (called by systemd on shutdown)."""
     import sys
-
-    from pidex.config.loader import get_telegram_config, load_config
-    from pidex.notifiers.telegram import TelegramNotifier
 
     logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
 

@@ -40,7 +40,8 @@ def test_format_message_escapes_html():
         message="value < 100 & cost > $50",
     )
     text = TelegramNotifier._format_message(e)
-    assert "value < 100" in text
+    assert "value &lt; 100" in text
+    assert "&amp;" in text
 
 
 def test_send_success(notifier):

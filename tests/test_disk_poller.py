@@ -19,7 +19,7 @@ def test_disk_read_value():
         poller._state = "ok"
 
         value = poller.read_value()
-        expected = (1000000 * 4096 - 300000 * 4096) / (1000000 * 4096) * 100.0
+        expected = (1000000 * 4096 - 250000 * 4096) / (1000000 * 4096) * 100.0
         assert abs(value - expected) < 0.01
 
 
