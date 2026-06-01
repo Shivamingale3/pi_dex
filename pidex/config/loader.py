@@ -23,7 +23,7 @@ def load_config(path: str | None = None) -> Config:
         if os.path.isfile(expanded):
             return _read_config(expanded)
 
-    return Config()
+    return Config.from_dict({})
 
 
 def _read_config(path: str) -> Config:
