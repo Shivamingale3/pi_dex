@@ -2,6 +2,13 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 
+def entry_timestamp(entry: dict) -> datetime:
+    micros = entry.get("__REALTIME_TIMESTAMP")
+    if micros is not None:
+        return datetime.fromtimestamp(int(micros) / 1_000_000)
+    return datetime.now()
+
+
 @dataclass
 class Event:
     source: str

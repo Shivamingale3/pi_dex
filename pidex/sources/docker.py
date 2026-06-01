@@ -1,3 +1,4 @@
+import fnmatch
 import logging
 import threading
 from datetime import datetime
@@ -81,7 +82,7 @@ def _parse_event(raw: dict, watch: list[str]) -> Event | None:
     name = raw.get("Actor", {}).get("Attributes", {}).get("name", "unknown")
     container_id = raw.get("id", "")[:12]
 
-    if watch and name not in watch:
+    if watch and not any(fnmatch.fnmatch(name, p) for p in watch):
         return None
 
     event_type, severity, title = mapping

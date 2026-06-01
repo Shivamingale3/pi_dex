@@ -1,10 +1,9 @@
 from collections import OrderedDict, deque
 import re
 import time
-from datetime import datetime
 
 from pidex.core.constants import EVENT_SSH_BRUTEFORCE, EVENT_SSH_LOGIN, EVENT_SSH_LOGOUT, SEVERITY_INFO, SEVERITY_WARN, SOURCE_SSH
-from pidex.core.event import Event
+from pidex.core.event import Event, entry_timestamp
 
 _ACCEPTED_RE = re.compile(
     r"Accepted (?:publickey|password|keyboard-interactive) for (\S+) from (\S+)"
@@ -35,7 +34,7 @@ def parse(entry: dict) -> Event | None:
             severity=SEVERITY_INFO,
             title="SSH Login",
             message=f"{user} logged in from {ip}",
-            timestamp=_ts(entry),
+            timestamp=entry_timestamp(entry),
         )
 
     m = _DISCONNECTED_RE.search(message)
@@ -47,7 +46,7 @@ def parse(entry: dict) -> Event | None:
             severity=SEVERITY_INFO,
             title="SSH Logout",
             message=f"{user} disconnected from {ip}",
-            timestamp=_ts(entry),
+            timestamp=entry_timestamp(entry),
         )
 
     m = _FAILED_RE.search(message)
@@ -60,13 +59,11 @@ def parse(entry: dict) -> Event | None:
                 severity=SEVERITY_WARN,
                 title="SSH Brute Force",
                 message=f"Repeated failed attempts for {user} from {ip}",
-                timestamp=_ts(entry),
+                timestamp=entry_timestamp(entry),
             )
 
     return None
 
-
-from collections import deque
 
 _BRUTEFORCE_MAX_IPS = 1000
 _bruteforce_tracker: OrderedDict[str, deque[float]] = OrderedDict()
@@ -85,10 +82,3 @@ def _is_bruteforce(ip: str, entry: dict) -> bool:
     while attempts and attempts[0] < cutoff:
         attempts.popleft()
     return len(attempts) >= _BRUTEFORCE_THRESHOLD
-
-
-def _ts(entry: dict) -> datetime:
-    micros = entry.get("__REALTIME_TIMESTAMP")
-    if micros is not None:
-        return datetime.fromtimestamp(int(micros) / 1_000_000)
-    return datetime.now()

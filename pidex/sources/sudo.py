@@ -1,7 +1,11 @@
-from datetime import datetime
+import re
 
 from pidex.core.constants import EVENT_SUDO_USED, SEVERITY_INFO, SOURCE_SUDO
-from pidex.core.event import Event
+from pidex.core.event import Event, entry_timestamp
+
+_SUDO_RE = re.compile(
+    r"^\s*(\S+)\s*;.*?;\s*COMMAND=(.*)"
+)
 
 
 def parse(entry: dict) -> Event | None:
@@ -9,12 +13,12 @@ def parse(entry: dict) -> Event | None:
         return None
 
     message = entry.get("MESSAGE", "")
-    parts = message.split(" ; ")
-    if len(parts) < 4:
+    m = _SUDO_RE.match(message)
+    if not m:
         return None
 
-    user = parts[0].strip()
-    command = parts[-1].replace("COMMAND=", "", 1).strip()
+    user = m.group(1)
+    command = m.group(2).strip()
 
     return Event(
         source=SOURCE_SUDO,
@@ -22,12 +26,5 @@ def parse(entry: dict) -> Event | None:
         severity=SEVERITY_INFO,
         title="Sudo Used",
         message=f"{user} ran sudo {command}",
-        timestamp=_ts(entry),
+        timestamp=entry_timestamp(entry),
     )
-
-
-def _ts(entry: dict) -> datetime:
-    micros = entry.get("__REALTIME_TIMESTAMP")
-    if micros is not None:
-        return datetime.fromtimestamp(int(micros) / 1_000_000)
-    return datetime.now()
