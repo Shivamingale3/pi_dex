@@ -2,9 +2,6 @@
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
-[project.optional-dependencies]
-dev = ["pytest"]
-
 [project]
 name = "pidex"
 version = "0.1.0"
@@ -12,6 +9,19 @@ description = "Event-driven home server watchman for Raspberry Pi and Linux serv
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
+authors = [
+    { name = "Shivam Ingale" },
+]
+keywords = ["monitoring", "telegram", "raspberry-pi", "systemd", "docker", "ssh"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: System :: Monitoring",
+]
 dependencies = [
     "requests>=2.28",
     "pyroute2>=0.7",
@@ -19,9 +29,17 @@ dependencies = [
     "python-dotenv>=1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Shivamingale3/pi_dex"
+Repository = "https://github.com/Shivamingale3/pi_dex"
+Issues = "https://github.com/Shivamingale3/pi_dex/issues"
+
 [project.scripts]
 pidex = "pidex.cli:main"
 pidex-shutdown = "pidex.sources.shutdown:main"
+
+[project.optional-dependencies]
+dev = ["pytest"]
 
 [tool.setuptools.packages.find]
 include = ["pidex*"]
