@@ -1,6 +1,10 @@
 import os
 import tomllib
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 DEFAULT_CONFIG_PATHS = [
     "./config/config.toml",
     "/etc/pidex/config.toml",
@@ -50,5 +54,9 @@ def get_cooldown_overrides(cfg: dict) -> dict[str, float]:
 
 
 def get_telegram_config(cfg: dict) -> tuple[str, str]:
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    if token and chat_id:
+        return token, chat_id
     tg = cfg.get("telegram", {})
-    return tg.get("bot_token", ""), tg.get("chat_id", "")
+    return tg.get("bot_token", "") or "", tg.get("chat_id", "") or ""
