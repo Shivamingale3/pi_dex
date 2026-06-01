@@ -1,6 +1,6 @@
 import fnmatch
 import re
-import time
+from datetime import datetime
 
 from pidex.core.constants import (
     EVENT_SERVICE_FAILED,
@@ -102,5 +102,8 @@ def _is_watched(service: str, patterns: list[str]) -> bool:
     return False
 
 
-def _ts(entry: dict) -> float:
-    return entry.get("__REALTIME_TIMESTAMP", time.time()) / 1_000_000
+def _ts(entry: dict) -> datetime:
+    micros = entry.get("__REALTIME_TIMESTAMP")
+    if micros is not None:
+        return datetime.fromtimestamp(int(micros) / 1_000_000)
+    return datetime.now()

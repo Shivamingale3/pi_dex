@@ -1,5 +1,7 @@
 import logging
 import threading
+import time
+from datetime import datetime
 
 from pidex.core.bus import EventBus
 from pidex.core.constants import EVENT_INTERFACE_DOWN, EVENT_INTERFACE_UP, SEVERITY_WARN, SOURCE_NETWORK
@@ -41,6 +43,12 @@ def _parse_netlink(msg: dict) -> Event | None:
     name = attrs.get("IFLA_IFNAME", f"if{ifindex}")
     operstate = attrs.get("IFLA_OPERSTATE", "unknown")
 
+    ts = msg.get("timestamp")
+    if ts is None:
+        ts = datetime.now()
+    else:
+        ts = datetime.fromtimestamp(ts)
+
     if operstate == "UP":
         return Event(
             source=SOURCE_NETWORK,
@@ -48,7 +56,7 @@ def _parse_netlink(msg: dict) -> Event | None:
             severity=SEVERITY_WARN,
             title="Interface Up",
             message=f"{name} is UP",
-            timestamp=msg.get("timestamp", 0),
+            timestamp=ts,
         )
     elif operstate == "DOWN":
         return Event(
@@ -57,7 +65,7 @@ def _parse_netlink(msg: dict) -> Event | None:
             severity=SEVERITY_WARN,
             title="Interface Down",
             message=f"{name} is DOWN",
-            timestamp=msg.get("timestamp", 0),
+            timestamp=ts,
         )
 
     return None

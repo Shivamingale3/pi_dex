@@ -1,6 +1,5 @@
 import os
-
-import tomli
+import tomllib
 
 DEFAULT_CONFIG_PATHS = [
     "./config/config.toml",
@@ -23,7 +22,7 @@ def load_config(path: str | None = None) -> dict:
 
 def _read_file(path: str) -> dict:
     with open(path, "rb") as f:
-        return tomli.load(f)
+        return tomllib.load(f)
 
 
 def apply_config(cfg: dict) -> None:

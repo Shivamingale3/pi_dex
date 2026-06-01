@@ -1,5 +1,6 @@
 import re
 import time
+from datetime import datetime
 
 from pidex.core.constants import EVENT_SSH_BRUTEFORCE, EVENT_SSH_LOGIN, EVENT_SSH_LOGOUT, SEVERITY_INFO, SEVERITY_WARN, SOURCE_SSH
 from pidex.core.event import Event
@@ -19,7 +20,7 @@ _BRUTEFORCE_THRESHOLD = 3
 
 
 def parse(entry: dict) -> Event | None:
-    if entry.get("_COMM") != "sshd":
+    if entry.get("_COMM") != "sshd" and entry.get("SYSLOG_IDENTIFIER") != "sshd":
         return None
 
     message = entry.get("MESSAGE", "")
@@ -76,5 +77,8 @@ def _is_bruteforce(ip: str, entry: dict) -> bool:
     return len(_bruteforce_tracker[ip]) >= _BRUTEFORCE_THRESHOLD
 
 
-def _ts(entry: dict) -> float:
-    return entry.get("__REALTIME_TIMESTAMP", time.time()) / 1_000_000
+def _ts(entry: dict) -> datetime:
+    micros = entry.get("__REALTIME_TIMESTAMP")
+    if micros is not None:
+        return datetime.fromtimestamp(int(micros) / 1_000_000)
+    return datetime.now()

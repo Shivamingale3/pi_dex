@@ -1,6 +1,6 @@
 import logging
 import threading
-import time
+from datetime import datetime
 
 from pidex.core.bus import EventBus
 from pidex.core.constants import EVENT_REBOOT_STARTED, EVENT_SHUTDOWN_STARTED, SEVERITY_WARN, SOURCE_SHUTDOWN
@@ -30,7 +30,6 @@ class ShutdownSource(BaseSource):
             severity=SEVERITY_WARN,
             title="Shutdown Initiated",
             message="PiDex daemon is shutting down",
-            timestamp=time.time(),
         ))
 
 
@@ -41,7 +40,6 @@ def send_reboot_event(bus: EventBus) -> None:
         severity=SEVERITY_WARN,
         title="Reboot Initiated",
         message="System rebooting",
-        timestamp=time.time(),
     ))
 
 
@@ -68,7 +66,7 @@ def main() -> None:
         severity=SEVERITY_WARN,
         title="System Shutdown",
         message="Server is powering off",
-        timestamp=time.time(),
+
     )
 
     try:

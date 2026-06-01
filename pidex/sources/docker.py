@@ -1,6 +1,6 @@
 import logging
 import threading
-import time
+from datetime import datetime
 
 from pidex.core.bus import EventBus
 from pidex.core.constants import (
@@ -34,7 +34,6 @@ class DockerSource(BaseSource):
     def run(self, stop_event: threading.Event) -> None:
         client = _docker_client()
         if client is None:
-            logger.error("Docker not available — skipping Docker source")
             return
 
         while not stop_event.is_set():
@@ -57,9 +56,15 @@ def _docker_client():
 
         return docker.from_env()
     except ImportError:
+        logger.error(
+            "Docker SDK not installed — install: pip install docker "
+            "(or: apt install python3-docker)"
+        )
         return None
     except Exception:
-        logger.exception("Failed to connect to Docker")
+        logger.exception(
+            "Docker daemon unreachable — is Docker running and is your user in the docker group?"
+        )
         return None
 
 
@@ -86,5 +91,5 @@ def _parse_event(raw: dict, watch: list[str]) -> Event | None:
         severity=severity,
         title=title,
         message=f"Container '{name}' ({container_id})",
-        timestamp=time.time(),
+        timestamp=datetime.now(),
     )

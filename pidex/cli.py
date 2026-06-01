@@ -127,7 +127,7 @@ def cmd_run(args: argparse.Namespace, cfg: dict) -> None:
         p.start(stop_event)
         pollers.append(p)
 
-    logger.info("PiDex v%s started", VERSION)
+    logger.info("PiDex v%s started — %d event source(s), %d poller(s)", VERSION, len(sources), len(pollers))
     shutdown_requested.wait()
 
     bus.publish(Event(
@@ -136,7 +136,6 @@ def cmd_run(args: argparse.Namespace, cfg: dict) -> None:
         severity=SEVERITY_WARN,
         title="Shutdown Initiated",
         message="PiDex daemon is shutting down",
-        timestamp=time.time(),
     ))
 
     time.sleep(0.5)

@@ -15,6 +15,12 @@ if ! id -u "$USER" &>/dev/null; then
     echo "Created system user: $USER"
 fi
 
+# Install system dependencies
+if command -v apt-get &>/dev/null; then
+    apt-get install -y --no-install-recommends python3-systemd
+    echo "Installed python3-systemd (journald support)"
+fi
+
 # Install Python package
 if command -v pip &>/dev/null; then
     pip install --quiet --upgrade "$(dirname "$0")/.."
@@ -48,3 +54,8 @@ echo "  4. Check status:        sudo systemctl status pidex"
 echo ""
 echo "To enable shutdown notifications:"
 echo "  sudo systemctl enable pidex-shutdown"
+echo ""
+echo "Prerequisites:"
+echo "  - Docker: ensure your user is in the 'docker' group to access Docker events"
+echo "    sudo usermod -aG docker $USER"
+echo "  - journald: python3-systemd was installed above"

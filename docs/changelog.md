@@ -1,5 +1,16 @@
 # Development Changelog
 
+## 2026-06-01 — Fixes after first run
+
+- Added `docker>=7.0` to `requirements.txt` and `pyproject.toml` (was missing)
+- Improved error messages in `docker.py` — distinguish "SDK not installed" vs
+  "daemon unreachable"
+- Improved error message in `journal.py` — tells user `apt install python3-systemd`
+- Fixed `timestamp` type mismatch: all `Event.timestamp` values now properly
+  use `datetime` objects (was passing `time.time()` floats in several places,
+  causing `AttributeError: 'float' object has no attribute 'strftime'`)
+- Updated `deploy/install.sh` to install `python3-systemd` via apt
+
 ## 2026-06-01 — Phase 1: Core + Telegram
 
 - Created project structure (pidex/ package layout)

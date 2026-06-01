@@ -1,6 +1,6 @@
 [telegram]
-bot_token = ""
-chat_id = ""
+bot_token = "e"
+chat_id = "632720215"
 
 [monitor]
 ssh = true

@@ -1,11 +1,11 @@
-import time
+from datetime import datetime
 
 from pidex.core.constants import EVENT_SUDO_USED, SEVERITY_INFO, SOURCE_SUDO
 from pidex.core.event import Event
 
 
 def parse(entry: dict) -> Event | None:
-    if entry.get("_COMM") != "sudo":
+    if entry.get("_COMM") != "sudo" and entry.get("SYSLOG_IDENTIFIER") != "sudo":
         return None
 
     message = entry.get("MESSAGE", "")
@@ -26,5 +26,8 @@ def parse(entry: dict) -> Event | None:
     )
 
 
-def _ts(entry: dict) -> float:
-    return entry.get("__REALTIME_TIMESTAMP", time.time()) / 1_000_000
+def _ts(entry: dict) -> datetime:
+    micros = entry.get("__REALTIME_TIMESTAMP")
+    if micros is not None:
+        return datetime.fromtimestamp(int(micros) / 1_000_000)
+    return datetime.now()
