@@ -1,0 +1,25 @@
+[telegram]
+enabled = true
+
+[cooldowns]
+SSH_LOGIN = 0
+SSH_BRUTEFORCE = 60
+CPU_HIGH = 300
+RAM_HIGH = 300
+DISK_CRITICAL = 3600
+TEMP_CRITICAL = 300
+
+[pollers]
+
+cpu_interval = 15
+ram_interval = 30
+disk_interval = 300
+
+cpu_warn = 80
+cpu_critical = 95
+
+ram_warn = 80
+ram_critical = 95
+
+disk_warn = 85
+disk_critical = 95
