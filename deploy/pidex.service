@@ -16,6 +16,10 @@ StateDirectory=pidex
 ConfigurationDirectory=pidex
 StandardOutput=journal
 StandardError=journal
+# Set credentials via env vars, .env file, or EnvironmentFile:
+# Environment=TELEGRAM_BOT_TOKEN=your_token
+# Environment=TELEGRAM_CHAT_ID=your_chat_id
+# EnvironmentFile=/etc/pidex/env
 
 [Install]
 WantedBy=multi-user.target
