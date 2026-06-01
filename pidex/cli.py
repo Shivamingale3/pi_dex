@@ -7,7 +7,7 @@ import time
 
 from pidex.config.loader import load_config
 from pidex.core.bus import EventBus
-from pidex.core.constants import EVENT_SHUTDOWN_STARTED, SEVERITY_WARN, SOURCE_SHUTDOWN, VERSION
+from pidex.core.constants import EVENT_DAEMON_START, EVENT_SHUTDOWN_STARTED, SEVERITY_INFO, SEVERITY_WARN, SOURCE_DAEMON, SOURCE_SHUTDOWN, VERSION
 from pidex.core.cooldowns import CooldownManager
 from pidex.core.dispatcher import Dispatcher
 from pidex.core.event import Event
@@ -101,6 +101,13 @@ def _cmd_run(cfg) -> None:
         p.start(stop_event)
         pollers.append(p)
 
+    bus.publish(Event(
+        source=SOURCE_DAEMON,
+        event_type=EVENT_DAEMON_START,
+        severity=SEVERITY_INFO,
+        title="PiDex Started",
+        message=f"PiDex v{VERSION} started — {len(sources)} event source(s), {len(pollers)} poller(s)",
+    ))
     logger.info("PiDex v%s started — %d event source(s), %d poller(s)", VERSION, len(sources), len(pollers))
     shutdown_requested.wait()
 
