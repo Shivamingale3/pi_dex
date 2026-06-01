@@ -9,6 +9,30 @@ def entry_timestamp(entry: dict) -> datetime:
     return datetime.now()
 
 
+def entry_message(entry: dict) -> str:
+    """Coerce a journal MESSAGE field to a single string.
+
+    journalctl --output=json returns MESSAGE as:
+    - a string (most common)
+    - a list of strings (multi-line)
+    - a list of bytes (binary or non-UTF8)
+    - bytes (raw binary)
+    """
+    return _message_to_str(entry.get("MESSAGE", ""))
+
+
+def _message_to_str(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    if isinstance(value, list):
+        return "\n".join(_message_to_str(item) for item in value)
+    return str(value)
+
+
 @dataclass
 class Event:
     source: str

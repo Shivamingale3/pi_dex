@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pidex.core.event import Event
+from pidex.core.event import Event, entry_message
 
 
 def test_event_creation():
@@ -86,3 +86,35 @@ def test_dedup_key_differs_for_different_sources():
         message="user logged in",
     )
     assert e1.dedup_key() != e2.dedup_key()
+
+
+def test_entry_message_string():
+    assert entry_message({"MESSAGE": "Started nginx.service"}) == "Started nginx.service"
+
+
+def test_entry_message_bytes():
+    assert entry_message({"MESSAGE": b"Started nginx.service"}) == "Started nginx.service"
+
+
+def test_entry_message_list_of_strings():
+    assert entry_message({"MESSAGE": ["line one", "line two"]}) == "line one\nline two"
+
+
+def test_entry_message_list_of_bytes():
+    assert entry_message({"MESSAGE": [b"line one", b"line two"]}) == "line one\nline two"
+
+
+def test_entry_message_mixed_list():
+    assert entry_message({"MESSAGE": ["line one", b"line two"]}) == "line one\nline two"
+
+
+def test_entry_message_bytes_with_invalid_utf8():
+    assert entry_message({"MESSAGE": b"\xff\xfe\xfd"}) == "\ufffd\ufffd\ufffd"
+
+
+def test_entry_message_missing_returns_empty():
+    assert entry_message({}) == ""
+
+
+def test_entry_message_none_returns_empty():
+    assert entry_message({"MESSAGE": None}) == ""

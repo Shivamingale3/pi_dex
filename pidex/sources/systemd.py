@@ -11,7 +11,7 @@ from pidex.core.constants import (
     SEVERITY_WARN,
     SOURCE_SYSTEMD,
 )
-from pidex.core.event import Event, entry_timestamp
+from pidex.core.event import Event, entry_message, entry_timestamp
 
 _STARTED_RE = re.compile(r"Started (.+\.service)")
 _STOPPED_RE = re.compile(r"Stopped (.+\.service)")
@@ -24,7 +24,7 @@ def make_parser(watch_patterns: list[str]) -> callable:
         if not _is_systemd_entry(entry):
             return None
 
-        message = entry.get("MESSAGE", "")
+        message = entry_message(entry)
         service = _extract_service(message)
         if service is None:
             return None

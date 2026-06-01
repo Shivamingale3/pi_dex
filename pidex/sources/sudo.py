@@ -1,7 +1,7 @@
 import re
 
 from pidex.core.constants import EVENT_SUDO_USED, SEVERITY_INFO, SOURCE_SUDO
-from pidex.core.event import Event, entry_timestamp
+from pidex.core.event import Event, entry_message, entry_timestamp
 
 _SUDO_RE = re.compile(
     r"^\s*(\S+)\s*;.*?;\s*COMMAND=(.*)"
@@ -12,7 +12,7 @@ def parse(entry: dict) -> Event | None:
     if entry.get("_COMM") != "sudo" and entry.get("SYSLOG_IDENTIFIER") != "sudo":
         return None
 
-    message = entry.get("MESSAGE", "")
+    message = entry_message(entry)
     m = _SUDO_RE.match(message)
     if not m:
         return None
