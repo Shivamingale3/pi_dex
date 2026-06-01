@@ -1,61 +1,158 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALL_DIR="/opt/pidex"
+REPO="Shivamingale3/pi_dex"
+INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/pidex"
 SERVICE_DIR="/etc/systemd/system"
 USER="pidex"
 GROUP="pidex"
 
-echo "=== PiDex Installer ==="
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64)  ASSET_ARCH="amd64"  ;;
+    aarch64) ASSET_ARCH="arm64"  ;;
+    *)
+        echo "Unsupported architecture: $ARCH"
+        echo "PiDex ships prebuilt binaries for linux/amd64 and linux/arm64 only."
+        echo "See 'Building from Source' in the README:"
+        echo "  https://github.com/$REPO?tab=readme-ov-file#building-from-source"
+        exit 0
+        ;;
+esac
 
-# Create user if missing
+echo "=== PiDex Installer ==="
+echo "Architecture: $ARCH"
+RELEASE=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest")
+TAG=$(echo "$RELEASE" | grep '"tag_name"' | cut -d'"' -f4)
+echo "Release: $TAG"
+
+TMP="/tmp/pidex-install"
+mkdir -p "$TMP"
+cd "$TMP"
+BINARY="pidex-$TAG-linux-$ASSET_ARCH"
+curl -sSLO "https://github.com/$REPO/releases/download/$TAG/$BINARY"
+curl -sSLO "https://github.com/$REPO/releases/download/$TAG/SHA256SUMS"
+
+sha256sum -c SHA256SUMS --ignore-missing 2>/dev/null || {
+    echo "ERROR: SHA256 checksum mismatch"
+    rm -f "$BINARY"
+    exit 1
+}
+
+install -m 0755 "$BINARY" "$INSTALL_DIR/pidex"
+ln -sf pidex "$INSTALL_DIR/pidex-shutdown"
+echo "Installed: $INSTALL_DIR/pidex"
+
+if command -v apt-get &>/dev/null; then
+    apt-get install -y --no-install-recommends python3-systemd 2>/dev/null || true
+fi
+
 if ! id -u "$USER" &>/dev/null; then
     useradd --system --no-create-home --shell /usr/sbin/nologin "$USER"
     echo "Created system user: $USER"
 fi
 
-# Install system dependencies
-if command -v apt-get &>/dev/null; then
-    apt-get install -y --no-install-recommends python3-systemd
-    echo "Installed python3-systemd (journald support)"
-fi
-
-# Install Python package
-if command -v pip &>/dev/null; then
-    pip install --quiet --upgrade "$(dirname "$0")/.."
-    echo "Installed pidex Python package"
-else
-    echo "ERROR: pip not found. Install Python 3 + pip first." >&2
-    exit 1
-fi
-
-# Create config directory
 mkdir -p "$CONFIG_DIR"
-if [ ! -f "$CONFIG_DIR/config.toml" ]; then
-    cp "$(dirname "$0")/../config/config.toml" "$CONFIG_DIR/config.toml"
-    echo "Created default config at $CONFIG_DIR/config.toml"
-    echo "  >>> EDIT $CONFIG_DIR/config.toml WITH YOUR TELEGRAM CREDENTIALS <<<"
-fi
+touch "$CONFIG_DIR/env"
+chmod 600 "$CONFIG_DIR/env"
 
-# Install systemd services
-cp "$(dirname "$0")/pidex.service" "$SERVICE_DIR/pidex.service"
-cp "$(dirname "$0")/pidex-shutdown.service" "$SERVICE_DIR/pidex-shutdown.service"
+cat > "$CONFIG_DIR/config.toml" << 'CONFIG'
+[monitor]
+ssh = true
+sudo = true
+docker = true
+systemd = true
+network = true
+cpu = true
+ram = true
+disk = true
+temperature = true
+
+[services]
+watch = ["cloudflared", "docker", "nginx", "caddy", "tailscale"]
+
+[containers]
+watch = []
+
+[pollers]
+cpu_interval = 15
+ram_interval = 30
+temp_interval = 30
+disk_interval = 300
+
+[thresholds]
+cpu_warn = 80
+cpu_critical = 95
+ram_warn = 85
+ram_critical = 95
+disk_warn = 85
+disk_critical = 95
+temp_warn = 75
+temp_critical = 85
+
+[cooldowns]
+# Use defaults
+CONFIG
+chmod 640 "$CONFIG_DIR/config.toml"
+
+cat > "$SERVICE_DIR/pidex.service" << SERVICE
+[Unit]
+Description=PiDex - Home Server Watchman
+Documentation=https://github.com/$REPO
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=$INSTALL_DIR/pidex run
+Restart=on-failure
+RestartSec=5
+User=$USER
+Group=$GROUP
+RuntimeDirectory=pidex
+StateDirectory=pidex
+ConfigurationDirectory=pidex
+StandardOutput=journal
+StandardError=journal
+EnvironmentFile=-$CONFIG_DIR/env
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+cat > "$SERVICE_DIR/pidex-shutdown.service" << SERVICE
+[Unit]
+Description=PiDex Shutdown Notification
+Documentation=https://github.com/$REPO
+DefaultDependencies=no
+Before=shutdown.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+ExecStart=$INSTALL_DIR/pidex-shutdown
+RemainAfterExit=true
+User=$USER
+Group=$GROUP
+StandardOutput=journal
+StandardError=journal
+EnvironmentFile=-$CONFIG_DIR/env
+
+[Install]
+WantedBy=shutdown.target reboot.target halt.target
+SERVICE
+
 systemctl daemon-reload
+echo "Installed systemd services"
 
 echo ""
-echo "=== Installation Complete ==="
+echo "=== PiDex $TAG installed ==="
 echo ""
 echo "Next steps:"
-echo "  1. Edit $CONFIG_DIR/config.toml with your Telegram bot token and chat ID"
-echo "  2. Enable the service:  sudo systemctl enable pidex"
-echo "  3. Start the service:   sudo systemctl start pidex"
-echo "  4. Check status:        sudo systemctl status pidex"
+echo "  1. Configure:  sudo pidex setup"
+echo "  2. Enable daemon:  sudo systemctl enable --now pidex"
+echo "  3. (Optional) Enable shutdown notifications:"
+echo "     sudo systemctl enable pidex-shutdown"
 echo ""
-echo "To enable shutdown notifications:"
-echo "  sudo systemctl enable pidex-shutdown"
-echo ""
-echo "Prerequisites:"
-echo "  - Docker: ensure your user is in the 'docker' group to access Docker events"
-echo "    sudo usermod -aG docker $USER"
-echo "  - journald: python3-systemd was installed above"
+echo "Add your user to the pidex group for config write access:"
+echo "  sudo usermod -aG $GROUP \$USER"
