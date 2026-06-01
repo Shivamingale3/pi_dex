@@ -27,11 +27,29 @@ class JournalSource(BaseSource):
         _run_loop(reader, stop_event, self._bus, self._parsers)
 
 
+_RELEVANT_COMMS = {"sshd", "sudo", "systemd"}
+
+
+def _is_relevant(entry: dict) -> bool:
+    comm = entry.get("_COMM")
+    if comm in _RELEVANT_COMMS:
+        return True
+    identifier = entry.get("SYSLOG_IDENTIFIER", "")
+    if identifier in _RELEVANT_COMMS:
+        return True
+    unit = entry.get("_SYSTEMD_UNIT", "")
+    if unit.endswith(".service"):
+        return True
+    return False
+
+
 def _run_loop(reader, stop_event, bus, parsers) -> None:
     while not stop_event.is_set():
         for entry in reader:
             if stop_event.is_set():
                 break
+            if not _is_relevant(entry):
+                continue
             for parser in parsers:
                 try:
                     event = parser(entry)

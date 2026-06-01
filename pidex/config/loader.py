@@ -29,8 +29,39 @@ def _read_file(path: str) -> dict:
         return tomllib.load(f)
 
 
+_VALID_POLLER_KEYS = {"cpu_interval", "ram_interval", "temp_interval", "disk_interval"}
+_VALID_THRESHOLD_KEYS = {
+    "cpu_warn", "cpu_critical", "ram_warn", "ram_critical",
+    "disk_warn", "disk_critical", "temp_warn", "temp_critical",
+}
+
+
+def _validate_config(cfg: dict) -> None:
+    pollers = cfg.get("pollers", {})
+    for k, v in pollers.items():
+        if k in _VALID_POLLER_KEYS and not isinstance(v, (int, float)):
+            raise ValueError(f"poller.{k} must be a number, got {type(v).__name__}")
+
+    thresholds = cfg.get("thresholds", {})
+    for k, v in thresholds.items():
+        if k in _VALID_THRESHOLD_KEYS and not isinstance(v, (int, float)):
+            raise ValueError(f"thresholds.{k} must be a number, got {type(v).__name__}")
+
+    services = cfg.get("services", {})
+    watch = services.get("watch", [])
+    if not isinstance(watch, list):
+        raise ValueError("services.watch must be a list")
+
+    containers = cfg.get("containers", {})
+    cwatch = containers.get("watch", [])
+    if not isinstance(cwatch, list):
+        raise ValueError("containers.watch must be a list")
+
+
 def apply_config(cfg: dict) -> None:
     import pidex.core.constants as C
+
+    _validate_config(cfg)
 
     pollers = cfg.get("pollers", {})
     C.DEFAULT_CPU_INTERVAL = pollers.get("cpu_interval", C.DEFAULT_CPU_INTERVAL)

@@ -1,6 +1,5 @@
 import fnmatch
 import re
-from datetime import datetime
 
 from pidex.core.constants import (
     EVENT_SERVICE_FAILED,
@@ -12,7 +11,7 @@ from pidex.core.constants import (
     SEVERITY_WARN,
     SOURCE_SYSTEMD,
 )
-from pidex.core.event import Event
+from pidex.core.event import Event, entry_timestamp
 
 _STARTED_RE = re.compile(r"Started (.+\.service)")
 _STOPPED_RE = re.compile(r"Stopped (.+\.service)")
@@ -40,7 +39,7 @@ def make_parser(watch_patterns: list[str]) -> callable:
                 severity=SEVERITY_INFO,
                 title="Service Started",
                 message=f"{service} started",
-                timestamp=_ts(entry),
+                timestamp=entry_timestamp(entry),
             )
 
         if _STOPPED_RE.match(message):
@@ -50,7 +49,7 @@ def make_parser(watch_patterns: list[str]) -> callable:
                 severity=SEVERITY_WARN,
                 title="Service Stopped",
                 message=f"{service} stopped",
-                timestamp=_ts(entry),
+                timestamp=entry_timestamp(entry),
             )
 
         if _FAILED_RE.match(message):
@@ -60,7 +59,7 @@ def make_parser(watch_patterns: list[str]) -> callable:
                 severity=SEVERITY_CRITICAL,
                 title="Service Failed",
                 message=f"{service} failed to start",
-                timestamp=_ts(entry),
+                timestamp=entry_timestamp(entry),
             )
 
         if _RESTARTED_RE.match(message):
@@ -70,7 +69,7 @@ def make_parser(watch_patterns: list[str]) -> callable:
                 severity=SEVERITY_INFO,
                 title="Service Restarted",
                 message=f"{service} was restarted",
-                timestamp=_ts(entry),
+                timestamp=entry_timestamp(entry),
             )
 
         return None
@@ -100,10 +99,3 @@ def _is_watched(service: str, patterns: list[str]) -> bool:
         if fnmatch.fnmatch(service, p):
             return True
     return False
-
-
-def _ts(entry: dict) -> datetime:
-    micros = entry.get("__REALTIME_TIMESTAMP")
-    if micros is not None:
-        return datetime.fromtimestamp(int(micros) / 1_000_000)
-    return datetime.now()
