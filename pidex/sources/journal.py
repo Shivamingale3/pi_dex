@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class JournalSource(BaseSource):
-    def __init__(self, bus: EventBus, config: dict):
+    def __init__(self, bus: EventBus, config):
         super().__init__(bus, config)
         self._parsers: list[callable] = []
 

@@ -5,7 +5,7 @@ import sys
 import threading
 import time
 
-from pidex.config.loader import apply_config, get_cooldown_overrides, get_telegram_config, load_config
+from pidex.config.loader import load_config
 from pidex.core.bus import EventBus
 from pidex.core.constants import EVENT_SHUTDOWN_STARTED, SEVERITY_WARN, SOURCE_SHUTDOWN, VERSION
 from pidex.core.cooldowns import CooldownManager
@@ -24,24 +24,14 @@ logging.basicConfig(
 logger = logging.getLogger("pidex")
 
 
-def _resolve_telegram(args: argparse.Namespace, cfg: dict) -> tuple[str, str]:
-    cfg_token, cfg_chat = get_telegram_config(cfg)
-    token = args.bot_token or cfg_token
-    chat_id = args.chat_id or cfg_chat
-    return token, chat_id
-
-
-def cmd_run(args: argparse.Namespace, cfg: dict) -> None:
-    apply_config(cfg)
-
-    token, chat_id = _resolve_telegram(args, cfg)
-    if not token or not chat_id:
+def _cmd_run(cfg) -> None:
+    if not cfg.telegram_token or not cfg.telegram_chat_id:
         logger.error("Telegram bot_token and chat_id required (config or --flags)")
         sys.exit(1)
 
     bus = EventBus()
-    notifier = TelegramNotifier(bot_token=token, chat_id=chat_id)
-    cooldowns = CooldownManager(overrides=get_cooldown_overrides(cfg))
+    notifier = TelegramNotifier(bot_token=cfg.telegram_token, chat_id=cfg.telegram_chat_id)
+    cooldowns = CooldownManager(overrides=cfg.cooldown_overrides)
     dispatcher = Dispatcher(bus=bus, notifier=notifier, cooldowns=cooldowns)
 
     stop_event = threading.Event()
@@ -57,49 +47,33 @@ def cmd_run(args: argparse.Namespace, cfg: dict) -> None:
     dispatcher.start(stop_event)
 
     sources = []
-    monitor = cfg.get("monitor", {})
 
-    if monitor.get("ssh", True) or monitor.get("sudo", True) or monitor.get("systemd", True):
+    if cfg.monitor_ssh or cfg.monitor_sudo or cfg.monitor_systemd:
         journal = JournalSource(bus, cfg)
         from pidex.sources import ssh as ssh_parser
         from pidex.sources import sudo as sudo_parser
         from pidex.sources.systemd import make_parser as make_systemd_parser
 
-        if monitor.get("ssh", True):
+        if cfg.monitor_ssh:
             journal.register(ssh_parser.parse)
-        if monitor.get("sudo", True):
+        if cfg.monitor_sudo:
             journal.register(sudo_parser.parse)
-        if monitor.get("systemd", True):
-            watch = cfg.get("services", {}).get("watch", [])
-            journal.register(make_systemd_parser(watch))
+        if cfg.monitor_systemd:
+            journal.register(make_systemd_parser(cfg.service_watch or []))
 
         journal.start(stop_event)
         sources.append(journal)
 
-    if monitor.get("docker", True):
+    if cfg.monitor_docker:
         docker = DockerSource(bus, cfg)
         docker.start(stop_event)
         sources.append(docker)
 
-    if monitor.get("network", True):
+    if cfg.monitor_network:
         network = NetworkSource(bus, cfg)
         network.start(stop_event)
         sources.append(network)
 
-    from pidex.core.constants import (
-        DEFAULT_CPU_INTERVAL,
-        DEFAULT_CPU_WARN,
-        DEFAULT_CPU_CRITICAL,
-        DEFAULT_RAM_INTERVAL,
-        DEFAULT_RAM_WARN,
-        DEFAULT_RAM_CRITICAL,
-        DEFAULT_DISK_INTERVAL,
-        DEFAULT_DISK_WARN,
-        DEFAULT_DISK_CRITICAL,
-        DEFAULT_TEMP_INTERVAL,
-        DEFAULT_TEMP_WARN,
-        DEFAULT_TEMP_CRITICAL,
-    )
     from pidex.pollers.cpu import CpuPoller
     from pidex.pollers.ram import RamPoller
     from pidex.pollers.disk import DiskPoller
@@ -107,23 +81,23 @@ def cmd_run(args: argparse.Namespace, cfg: dict) -> None:
 
     pollers = []
 
-    if monitor.get("cpu", True):
-        p = CpuPoller(bus, DEFAULT_CPU_INTERVAL, DEFAULT_CPU_WARN, DEFAULT_CPU_CRITICAL)
+    if cfg.monitor_cpu:
+        p = CpuPoller(bus, cfg.cpu_interval, cfg.cpu_warn, cfg.cpu_critical)
         p.start(stop_event)
         pollers.append(p)
 
-    if monitor.get("ram", True):
-        p = RamPoller(bus, DEFAULT_RAM_INTERVAL, DEFAULT_RAM_WARN, DEFAULT_RAM_CRITICAL)
+    if cfg.monitor_ram:
+        p = RamPoller(bus, cfg.ram_interval, cfg.ram_warn, cfg.ram_critical)
         p.start(stop_event)
         pollers.append(p)
 
-    if monitor.get("disk", True):
-        p = DiskPoller(bus, DEFAULT_DISK_INTERVAL, DEFAULT_DISK_WARN, DEFAULT_DISK_CRITICAL)
+    if cfg.monitor_disk:
+        p = DiskPoller(bus, cfg.disk_interval, cfg.disk_warn, cfg.disk_critical)
         p.start(stop_event)
         pollers.append(p)
 
-    if monitor.get("temperature", True):
-        p = TemperaturePoller(bus, DEFAULT_TEMP_INTERVAL, DEFAULT_TEMP_WARN, DEFAULT_TEMP_CRITICAL)
+    if cfg.monitor_temperature:
+        p = TemperaturePoller(bus, cfg.temp_interval, cfg.temp_warn, cfg.temp_critical)
         p.start(stop_event)
         pollers.append(p)
 
@@ -146,7 +120,15 @@ def cmd_run(args: argparse.Namespace, cfg: dict) -> None:
     logger.info("PiDex stopped")
 
 
-def cmd_test(args: argparse.Namespace, cfg: dict) -> None:
+def cmd_run(args: argparse.Namespace, cfg) -> None:
+    if args.bot_token:
+        cfg.telegram_token = args.bot_token
+    if args.chat_id:
+        cfg.telegram_chat_id = args.chat_id
+    _cmd_run(cfg)
+
+
+def cmd_test(args: argparse.Namespace, cfg) -> None:
     events = {
         "ssh-login": Event(
             source="ssh",
@@ -199,7 +181,8 @@ def cmd_test(args: argparse.Namespace, cfg: dict) -> None:
         print(f"  Message: {event.message}")
         return
 
-    token, chat_id = _resolve_telegram(args, cfg)
+    token = args.bot_token or cfg.telegram_token
+    chat_id = args.chat_id or cfg.telegram_chat_id
     if not token or not chat_id:
         logger.error("--bot-token and --chat-id required (or use --dry-run)")
         sys.exit(1)
@@ -209,7 +192,7 @@ def cmd_test(args: argparse.Namespace, cfg: dict) -> None:
     print("Sent.")
 
 
-def cmd_version(args: argparse.Namespace, cfg: dict) -> None:
+def cmd_version(args: argparse.Namespace, cfg) -> None:
     print(f"PiDex v{VERSION}")
 
 
