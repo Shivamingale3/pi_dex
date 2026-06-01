@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 
+from pidex.cli_setup import cmd_setup
 from pidex.config.loader import load_config
 from pidex.core.bus import EventBus
 from pidex.core.constants import EVENT_DAEMON_START, EVENT_SHUTDOWN_STARTED, SEVERITY_INFO, SEVERITY_WARN, SOURCE_DAEMON, SOURCE_SHUTDOWN, VERSION
@@ -132,6 +133,11 @@ def cmd_run(args: argparse.Namespace, cfg) -> None:
         cfg.telegram_token = args.bot_token
     if args.chat_id:
         cfg.telegram_chat_id = args.chat_id
+    if not cfg.telegram_token or not cfg.telegram_chat_id:
+        if sys.stdin.isatty() and sys.stdout.isatty() and os.geteuid() == 0:
+            print("No Telegram credentials found. Launching setup wizard...")
+            cmd_setup(args, cfg)
+            cfg = load_config(path=args.config)
     _cmd_run(cfg)
 
 
@@ -218,6 +224,10 @@ def main() -> None:
     test_parser.add_argument("event_type", help="Event type (ssh-login, ssh-fail, sudo-used, docker-down, reboot)")
     test_parser.add_argument("--dry-run", action="store_true", help="Print the event without sending")
     test_parser.set_defaults(func=cmd_test)
+
+    setup_parser = sub.add_parser("setup", help="Interactive configuration wizard")
+    setup_parser.add_argument("--config", help="Path to config.toml")
+    setup_parser.set_defaults(func=cmd_setup)
 
     version_parser = sub.add_parser("version", help="Print version")
     version_parser.set_defaults(func=cmd_version)
