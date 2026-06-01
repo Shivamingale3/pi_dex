@@ -13,7 +13,7 @@ class DiskPoller(BasePoller):
     def read_value(self) -> float:
         s = os.statvfs(self._mount)
         total = s.f_frsize * s.f_blocks
-        free = s.f_frsize * s.f_bfree
+        free = s.f_frsize * s.f_bavail
         if total == 0:
             return 0.0
         return (total - free) / total * 100.0

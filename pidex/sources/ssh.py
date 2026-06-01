@@ -1,3 +1,4 @@
+from collections import OrderedDict, deque
 import re
 import time
 from datetime import datetime
@@ -65,16 +66,25 @@ def parse(entry: dict) -> Event | None:
     return None
 
 
-_bruteforce_tracker: dict[str, list[float]] = {}
+from collections import deque
+
+_BRUTEFORCE_MAX_IPS = 1000
+_bruteforce_tracker: OrderedDict[str, deque[float]] = OrderedDict()
 
 
 def _is_bruteforce(ip: str, entry: dict) -> bool:
     now = time.time()
-    attempts = _bruteforce_tracker.setdefault(ip, [])
+    if ip not in _bruteforce_tracker:
+        if len(_bruteforce_tracker) >= _BRUTEFORCE_MAX_IPS:
+            _bruteforce_tracker.popitem(last=False)
+        _bruteforce_tracker[ip] = deque()
+    _bruteforce_tracker.move_to_end(ip)
+    attempts = _bruteforce_tracker[ip]
     attempts.append(now)
     cutoff = now - _BRUTEFORCE_WINDOW
-    _bruteforce_tracker[ip] = [t for t in attempts if t > cutoff]
-    return len(_bruteforce_tracker[ip]) >= _BRUTEFORCE_THRESHOLD
+    while attempts and attempts[0] < cutoff:
+        attempts.popleft()
+    return len(attempts) >= _BRUTEFORCE_THRESHOLD
 
 
 def _ts(entry: dict) -> datetime:

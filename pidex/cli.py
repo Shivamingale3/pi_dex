@@ -138,7 +138,10 @@ def cmd_run(args: argparse.Namespace, cfg: dict) -> None:
         message="PiDex daemon is shutting down",
     ))
 
-    time.sleep(0.5)
+    for _ in range(50):
+        if bus.qsize == 0:
+            break
+        time.sleep(0.1)
     stop_event.set()
     logger.info("PiDex stopped")
 

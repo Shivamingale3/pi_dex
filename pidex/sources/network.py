@@ -35,19 +35,29 @@ class NetworkSource(BaseSource):
 
 
 def _parse_netlink(msg: dict) -> Event | None:
-    if msg.get("event") != "RTM_NEWLINK":
+    event = msg.get("event")
+    if event == "RTM_DELLINK":
+        ifindex = msg.get("index")
+        attrs = {k: v for k, v in msg.get("attrs", [])}
+        name = attrs.get("IFLA_IFNAME", f"if{ifindex}")
+        ts = _extract_ts(msg)
+        return Event(
+            source=SOURCE_NETWORK,
+            event_type=EVENT_INTERFACE_DOWN,
+            severity=SEVERITY_WARN,
+            title="Interface Removed",
+            message=f"{name} removed",
+            timestamp=ts,
+        )
+
+    if event != "RTM_NEWLINK":
         return None
 
     ifindex = msg.get("index")
     attrs = {k: v for k, v in msg.get("attrs", [])}
     name = attrs.get("IFLA_IFNAME", f"if{ifindex}")
     operstate = attrs.get("IFLA_OPERSTATE", "unknown")
-
-    ts = msg.get("timestamp")
-    if ts is None:
-        ts = datetime.now()
-    else:
-        ts = datetime.fromtimestamp(ts)
+    ts = _extract_ts(msg)
 
     if operstate == "UP":
         return Event(
@@ -69,3 +79,10 @@ def _parse_netlink(msg: dict) -> Event | None:
         )
 
     return None
+
+
+def _extract_ts(msg: dict) -> datetime:
+    ts = msg.get("timestamp")
+    if ts is None:
+        return datetime.now()
+    return datetime.fromtimestamp(ts)

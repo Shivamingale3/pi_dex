@@ -85,11 +85,13 @@ def _parse_event(raw: dict, watch: list[str]) -> Event | None:
         return None
 
     event_type, severity, title = mapping
+    ts = raw.get("time")
+    timestamp = datetime.fromtimestamp(ts) if ts else datetime.now()
     return Event(
         source=SOURCE_DOCKER,
         event_type=event_type,
         severity=severity,
         title=title,
         message=f"Container '{name}' ({container_id})",
-        timestamp=datetime.now(),
+        timestamp=timestamp,
     )
