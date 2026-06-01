@@ -3,7 +3,7 @@ import re
 import time
 
 from pidex.core.constants import EVENT_SSH_BRUTEFORCE, EVENT_SSH_LOGIN, EVENT_SSH_LOGOUT, SEVERITY_INFO, SEVERITY_WARN, SOURCE_SSH
-from pidex.core.event import Event, entry_timestamp
+from pidex.core.event import Event, entry_message, entry_timestamp
 
 _ACCEPTED_RE = re.compile(
     r"Accepted (?:publickey|password|keyboard-interactive) for (\S+) from (\S+)"
@@ -23,7 +23,7 @@ def parse(entry: dict) -> Event | None:
     if entry.get("_COMM") != "sshd" and entry.get("SYSLOG_IDENTIFIER") != "sshd":
         return None
 
-    message = entry.get("MESSAGE", "")
+    message = entry_message(entry)
 
     m = _ACCEPTED_RE.search(message)
     if m:
