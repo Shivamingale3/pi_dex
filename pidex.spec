@@ -5,7 +5,7 @@ a = Analysis(
     ['pidex.py'],
     pathex=[],
     binaries=[],
-    datas=[('config/config.toml', 'config')],
+    datas=[('config/config.toml.example', 'config')],
     hiddenimports=['docker', 'pyroute2', 'tomli', 'dotenv', 'requests', 'charset_normalizer', 'idna', 'urllib3', 'certifi'],
     hookspath=[],
     hooksconfig={},
