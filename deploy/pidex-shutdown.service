@@ -1,0 +1,17 @@
+[Unit]
+Description=PiDex Shutdown Notification
+Documentation=https://github.com/Shivamingale3/pi_dex
+DefaultDependencies=no
+Before=shutdown.target reboot.target halt.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/pidex-shutdown
+RemainAfterExit=true
+User=pidex
+Group=pidex
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=shutdown.target reboot.target halt.target

@@ -21,7 +21,9 @@ The design philosophy is:
 ---
 
 # Core Principles
-
+git remote add origin git@github.com:Shivamingale3/pi_dex.git
+git branch -M main
+git push -u origin main
 ## Principle 1 — Event Driven First
 
 Always prefer subscriptions and event streams over polling.
