@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 
 class DockerSource(BaseSource):
-    def __init__(self, bus: EventBus, config: dict):
+    def __init__(self, bus: EventBus, config):
         super().__init__(bus, config)
-        self._watch = config.get("containers", {}).get("watch", [])
+        self._watch = config.container_watch or []
 
     def run(self, stop_event: threading.Event) -> None:
         client = _docker_client()

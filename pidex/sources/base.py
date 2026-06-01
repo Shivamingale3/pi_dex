@@ -1,11 +1,12 @@
 import threading
 from abc import ABC, abstractmethod
 
+from pidex.config import Config
 from pidex.core.bus import EventBus
 
 
 class BaseSource(ABC):
-    def __init__(self, bus: EventBus, config: dict):
+    def __init__(self, bus: EventBus, config: Config):
         self._bus = bus
         self._config = config
         self._thread: threading.Thread | None = None
