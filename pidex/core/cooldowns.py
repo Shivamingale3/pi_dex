@@ -61,3 +61,5 @@ class CooldownManager:
 
     def update_duration(self, event_type: str, seconds: float) -> None:
         self._durations[event_type] = seconds
+        if seconds == 0:
+            self._cooled_until.pop(event_type, None)
