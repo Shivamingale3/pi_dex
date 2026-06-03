@@ -64,6 +64,66 @@ func DefaultConfig() Config {
 	}
 }
 
+func ConfigToMap(cfg Config) map[string]any {
+	m := map[string]any{}
+
+	m["monitor"] = map[string]any{
+		"ssh":         cfg.MonitorSSH,
+		"sudo":        cfg.MonitorSudo,
+		"systemd":     cfg.MonitorSystemd,
+		"docker":      cfg.MonitorDocker,
+		"network":     cfg.MonitorNetwork,
+		"cpu":         cfg.MonitorCPU,
+		"ram":         cfg.MonitorRAM,
+		"disk":        cfg.MonitorDisk,
+		"temperature": cfg.MonitorTemperature,
+	}
+
+	m["pollers"] = map[string]any{
+		"cpu_interval":  cfg.CPUInterval,
+		"ram_interval":  cfg.RAMInterval,
+		"temp_interval": cfg.TempInterval,
+		"disk_interval": cfg.DiskInterval,
+	}
+
+	m["thresholds"] = map[string]any{
+		"cpu_warn":      cfg.CPUWarn,
+		"cpu_critical":  cfg.CPUCritical,
+		"ram_warn":      cfg.RAMWarn,
+		"ram_critical":  cfg.RAMCritical,
+		"disk_warn":     cfg.DiskWarn,
+		"disk_critical": cfg.DiskCritical,
+		"temp_warn":     cfg.TempWarn,
+		"temp_critical": cfg.TempCritical,
+	}
+
+	if len(cfg.ServiceWatch) > 0 {
+		watch := make([]any, len(cfg.ServiceWatch))
+		for i, v := range cfg.ServiceWatch {
+			watch[i] = v
+		}
+		m["services"] = map[string]any{"watch": watch}
+	}
+
+	if len(cfg.ContainerWatch) > 0 {
+		watch := make([]any, len(cfg.ContainerWatch))
+		for i, v := range cfg.ContainerWatch {
+			watch[i] = v
+		}
+		m["containers"] = map[string]any{"watch": watch}
+	}
+
+	if len(cfg.CooldownOverrides) > 0 {
+		cd := make(map[string]any, len(cfg.CooldownOverrides))
+		for k, v := range cfg.CooldownOverrides {
+			cd[k] = v
+		}
+		m["cooldowns"] = cd
+	}
+
+	return m
+}
+
 func ConfigFromMap(data map[string]any, envToken, envChatID string) Config {
 	cfg := DefaultConfig()
 
