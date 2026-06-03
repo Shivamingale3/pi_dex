@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.1.1 (2026-06-03)
+
+- Add `requireRoot()` check to `run`, `setup`, `uninstall`, `test` (not dry-run)
+- Simplify install.sh back to plain `command -v go` check
+
 ## v1.1.0 (2026-06-03)
 
 - Rename `SeverityWarn` from `WARN` to `WARNING`
