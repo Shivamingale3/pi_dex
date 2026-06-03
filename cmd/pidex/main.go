@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -24,15 +25,21 @@ func main() {
 
 	switch os.Args[1] {
 	case "run":
+		requireRoot()
 		cmdRun()
 	case "version":
 		fmt.Printf("PiDex v%s\n", core.Version)
 	case "setup":
+		requireRoot()
 		cfg := config.LoadConfig("")
 		cmdSetup(cfg)
 	case "test":
+		if len(os.Args) < 3 || !hasDryRun(os.Args) {
+			requireRoot()
+		}
 		cmdTest(os.Args[1:])
 	case "uninstall":
+		requireRoot()
 		cmdUninstall()
 	case "help":
 		usage()
@@ -40,6 +47,23 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
 		usage()
 	}
+}
+
+func requireRoot() {
+	if os.Geteuid() != 0 {
+		fmt.Fprintln(os.Stderr, "pidex: this command requires root.")
+		fmt.Fprintln(os.Stderr, "Run with: sudo pidex", strings.Join(os.Args[1:], " "))
+		os.Exit(1)
+	}
+}
+
+func hasDryRun(args []string) bool {
+	for _, a := range args {
+		if a == "--dry-run" {
+			return true
+		}
+	}
+	return false
 }
 
 func usage() {
