@@ -8,45 +8,22 @@ SERVICE_DIR="/etc/systemd/system"
 USER="pidex"
 GROUP="pidex"
 
-ARCH=$(uname -m)
-case "$ARCH" in
-    x86_64)  ASSET_ARCH="amd64"  ;;
-    aarch64) ASSET_ARCH="arm64"  ;;
-    *)
-        echo "Unsupported architecture: $ARCH"
-        echo "PiDex ships prebuilt binaries for linux/amd64 and linux/arm64 only."
-        echo "See 'Building from Source' in the README:"
-        echo "  https://github.com/$REPO?tab=readme-ov-file#building-from-source"
-        exit 0
-        ;;
-esac
-
 echo "=== PiDex Installer ==="
-echo "Architecture: $ARCH"
-RELEASE=$(curl -sSL "https://api.github.com/repos/$REPO/releases/latest")
-TAG=$(echo "$RELEASE" | grep '"tag_name"' | cut -d'"' -f4)
-echo "Release: $TAG"
 
-TMP="/tmp/pidex-install"
-mkdir -p "$TMP"
-cd "$TMP"
-BINARY="pidex-$TAG-linux-$ASSET_ARCH"
-curl -sSLO "https://github.com/$REPO/releases/download/$TAG/$BINARY"
-curl -sSLO "https://github.com/$REPO/releases/download/$TAG/SHA256SUMS"
-
-sha256sum -c SHA256SUMS --ignore-missing 2>/dev/null || {
-    echo "ERROR: SHA256 checksum mismatch"
-    rm -f "$BINARY"
+if ! command -v go &>/dev/null; then
+    echo "ERROR: Go is required to build PiDex."
+    echo "Install Go: https://go.dev/doc/install"
     exit 1
-}
-
-install -m 0755 "$BINARY" "$INSTALL_DIR/pidex"
-ln -sf pidex "$INSTALL_DIR/pidex-shutdown"
-echo "Installed: $INSTALL_DIR/pidex"
-
-if command -v apt-get &>/dev/null; then
-    apt-get install -y --no-install-recommends python3-systemd 2>/dev/null || true
 fi
+
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$SCRIPT_DIR"
+
+echo "Building PiDex..."
+
+go build -ldflags="-s -w" -o "$INSTALL_DIR/pidex" ./cmd/pidex
+go build -ldflags="-s -w" -o "$INSTALL_DIR/pidex-shutdown" ./cmd/pidex-shutdown
+echo "Installed: $INSTALL_DIR/pidex, $INSTALL_DIR/pidex-shutdown"
 
 if ! id -u "$USER" &>/dev/null; then
     useradd --system --no-create-home --shell /usr/sbin/nologin "$USER"
@@ -146,10 +123,12 @@ systemctl daemon-reload
 echo "Installed systemd services"
 
 echo ""
-echo "=== PiDex $TAG installed ==="
+echo "=== PiDex installed ==="
 echo ""
 echo "Next steps:"
-echo "  1. Configure:  sudo pidex setup"
+echo "  1. Set Telegram credentials:"
+echo "     echo 'TELEGRAM_BOT_TOKEN=your_token' >> $CONFIG_DIR/env"
+echo "     echo 'TELEGRAM_CHAT_ID=your_chat_id' >> $CONFIG_DIR/env"
 echo "  2. Enable daemon:  sudo systemctl enable --now pidex"
 echo "  3. (Optional) Enable shutdown notifications:"
 echo "     sudo systemctl enable pidex-shutdown"

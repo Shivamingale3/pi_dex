@@ -1,18 +1,20 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/pidex
+/pidex-shutdown
 
-# Distribution / packaging
-build/
-dist/
-*.egg-info/
-*.egg
+# Test binary, built with `go test -c`
+*.test
 
-# Virtual environments
-.venv/
-venv/
-ENV/
+# Output of the go coverage tool
+*.out
+
+# Go workspace
+go.work
 
 # IDE / Editor
 .vscode/
@@ -31,11 +33,3 @@ Thumbs.db
 
 # Config (contains secrets — use .env instead)
 config/config.toml
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# mypy
-.mypy_cache/

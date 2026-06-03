@@ -7,9 +7,9 @@ if [ $# -ne 1 ]; then
 fi
 
 TYPE="$1"
-FILE="pidex/core/constants.py"
+FILE="internal/core/constants.go"
 
-CURRENT=$(grep -oP '^VERSION = "\K[^"]+' "$FILE")
+CURRENT=$(grep -oP '^const Version = "\K[^"]+' "$FILE")
 
 IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
@@ -21,7 +21,7 @@ case "$TYPE" in
 esac
 
 NEWVER="$MAJOR.$MINOR.$PATCH"
-sed -i "s/^VERSION = \"$CURRENT\"/VERSION = \"$NEWVER\"/" "$FILE"
+sed -i "s/^const Version = \"$CURRENT\"/const Version = \"$NEWVER\"/" "$FILE"
 
 cd "$(git rev-parse --show-toplevel)"
 
