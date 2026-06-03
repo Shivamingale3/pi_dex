@@ -29,6 +29,19 @@ var defaultCooldowns = map[string]float64{
 
 func cmdSetup(cfg config.Config) {
 	configPath, envPath := resolvePaths()
+
+	cfgDir := filepath.Dir(configPath)
+	if err := os.MkdirAll(cfgDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Run with: sudo pidex setup\n")
+		os.Exit(1)
+	}
+	testFile := filepath.Join(cfgDir, ".write_test")
+	if err := os.WriteFile(testFile, []byte{}, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Run with: sudo pidex setup\n")
+		os.Exit(1)
+	}
+	os.Remove(testFile)
+
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
@@ -120,14 +133,14 @@ func readEnv(path string) (token, chatID string) {
 	return
 }
 
-func writeEnv(path, token, chatID string) {
+func writeEnv(path, token, chatID string) error {
 	os.MkdirAll(filepath.Dir(path), 0755)
 	content := fmt.Sprintf("TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_CHAT_ID=%s\n", token, chatID)
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
-		fmt.Printf("\x1b[31mFailed to write %s: %v\x1b[0m\n", path, err)
-		return
+		return err
 	}
 	fmt.Printf("\x1b[32mWrote %s (mode 600)\x1b[0m\n", path)
+	return nil
 }
 
 func viewConfig(cfg config.Config, envPath string) {
@@ -258,7 +271,10 @@ func setCredentials(cfg config.Config, envPath string) config.Config {
 		return cfg
 	}
 
-	writeEnv(envPath, token, chatID)
+	if err := writeEnv(envPath, token, chatID); err != nil {
+		fmt.Printf("\x1b[31mFailed to write %s: %v\x1b[0m\n", envPath, err)
+		return cfg
+	}
 	cfg.TelegramToken = token
 	cfg.TelegramChatID = chatID
 	fmt.Println("\x1b[32mCredentials saved.\x1b[0m")
