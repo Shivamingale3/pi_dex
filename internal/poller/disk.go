@@ -45,21 +45,21 @@ func (p *DiskPoller) checkDisk() *core.Event {
 	case stateOK:
 		if value >= p.Warn {
 			p.state = stateWarn
-			return p.makeDiskEvent("WARN", value)
+			return p.makeDiskEvent(core.SeverityWarn, value)
 		}
 	case stateWarn:
 		if value >= p.Critical {
 			p.state = stateCritical
-			return p.makeDiskEvent("CRITICAL", value)
+			return p.makeDiskEvent(core.SeverityCritical, value)
 		}
 		if value < p.Warn {
 			p.state = stateOK
-			return p.makeDiskEvent("RECOVERED", value)
+			return p.makeDiskEvent(core.SeverityRecovered, value)
 		}
 	case stateCritical:
 		if value < p.Warn {
 			p.state = stateOK
-			return p.makeDiskEvent("RECOVERED", value)
+			return p.makeDiskEvent(core.SeverityRecovered, value)
 		}
 	}
 
