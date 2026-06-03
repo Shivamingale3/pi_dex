@@ -10,7 +10,15 @@ GROUP="pidex"
 
 echo "=== PiDex Installer ==="
 
-if ! command -v go &>/dev/null; then
+GO_CMD=""
+for candidate in go /usr/local/go/bin/go /usr/bin/go; do
+    if command -v "$candidate" &>/dev/null; then
+        GO_CMD="$candidate"
+        break
+    fi
+done
+
+if [ -z "$GO_CMD" ]; then
     echo "ERROR: Go is required to build PiDex."
     echo "Install Go: https://go.dev/doc/install"
     exit 1
@@ -34,8 +42,8 @@ fi
 
 echo "Building PiDex..."
 
-go build -ldflags="-s -w" -o "$INSTALL_DIR/pidex" ./cmd/pidex
-go build -ldflags="-s -w" -o "$INSTALL_DIR/pidex-shutdown" ./cmd/pidex-shutdown
+$GO_CMD build -ldflags="-s -w" -o "$INSTALL_DIR/pidex" ./cmd/pidex
+$GO_CMD build -ldflags="-s -w" -o "$INSTALL_DIR/pidex-shutdown" ./cmd/pidex-shutdown
 echo "Installed: $INSTALL_DIR/pidex, $INSTALL_DIR/pidex-shutdown"
 
 if ! id -u "$USER" &>/dev/null; then
