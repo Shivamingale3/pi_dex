@@ -16,8 +16,21 @@ if ! command -v go &>/dev/null; then
     exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$SCRIPT_DIR"
+# Determine if running from a local checkout or from curl | bash
+if [ -f "$0" ] && [ -f "$(dirname "$0")/../go.mod" ]; then
+    # Local checkout — build from script location
+    SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+    cd "$SCRIPT_DIR"
+    CLEANUP=""
+else
+    # Piped / remote — clone to temp directory
+    TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf "$TMP_DIR"' EXIT
+    echo "Downloading PiDex source..."
+    git clone --depth 1 "https://github.com/$REPO.git" "$TMP_DIR"
+    cd "$TMP_DIR"
+    CLEANUP="rm -rf $TMP_DIR"
+fi
 
 echo "Building PiDex..."
 
