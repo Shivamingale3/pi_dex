@@ -19,9 +19,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintf(os.Stderr, "Usage: pidex <command>\n")
-		fmt.Fprintf(os.Stderr, "Commands: run, version\n")
-		os.Exit(1)
+		usage()
 	}
 
 	switch os.Args[1] {
@@ -29,10 +27,31 @@ func main() {
 		cmdRun()
 	case "version":
 		fmt.Printf("PiDex v%s\n", core.Version)
+	case "setup":
+		cfg := config.LoadConfig("")
+		cmdSetup(cfg)
+	case "test":
+		cmdTest(os.Args[1:])
+	case "uninstall":
+		cmdUninstall()
+	case "help":
+		usage()
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
-		os.Exit(1)
+		usage()
 	}
+}
+
+func usage() {
+	fmt.Fprintf(os.Stderr, "Usage: pidex <command>\n")
+	fmt.Fprintf(os.Stderr, "\nCommands:\n")
+	fmt.Fprintf(os.Stderr, "  run        Start the daemon\n")
+	fmt.Fprintf(os.Stderr, "  setup      Interactive configuration wizard\n")
+	fmt.Fprintf(os.Stderr, "  test       Send a test notification\n")
+	fmt.Fprintf(os.Stderr, "  uninstall  Remove PiDex from the system\n")
+	fmt.Fprintf(os.Stderr, "  version    Show version\n")
+	fmt.Fprintf(os.Stderr, "  help       Show this help\n")
+	os.Exit(1)
 }
 
 func cmdRun() {

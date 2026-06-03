@@ -7,6 +7,18 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+func SaveConfig(path string, cfg Config) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	enc := toml.NewEncoder(f)
+	enc.Indent = ""
+	return enc.Encode(ConfigToMap(cfg))
+}
+
 var defaultConfigPaths = []string{
 	"./config/config.toml",
 	"/etc/pidex/config.toml",
