@@ -7,6 +7,7 @@ import (
 	"html"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/leadows/pi_dex/internal/core"
@@ -22,21 +23,24 @@ var severityIcon = map[string]string{
 }
 
 type TelegramNotifier struct {
-	apiURL  string
-	chatID  string
-	client  *http.Client
+	apiURL   string
+	chatID   string
+	client   *http.Client
+	hostname string
 }
 
 func NewTelegramNotifier(token, chatID string) *TelegramNotifier {
+	hostname, _ := os.Hostname()
 	return &TelegramNotifier{
-		apiURL: fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token),
-		chatID: chatID,
-		client: &http.Client{Timeout: 10 * time.Second},
+		apiURL:   fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token),
+		chatID:   chatID,
+		client:   &http.Client{Timeout: 10 * time.Second},
+		hostname: hostname,
 	}
 }
 
 func (n *TelegramNotifier) Send(event core.Event) error {
-	text := formatMessage(event)
+	text := n.formatMessage(event)
 	payload := map[string]any{
 		"chat_id":                  n.chatID,
 		"text":                     text,
@@ -71,14 +75,17 @@ func (n *TelegramNotifier) Send(event core.Event) error {
 	return fmt.Errorf("telegram send failed after %d retries: %w", maxRetries, lastErr)
 }
 
-func formatMessage(event core.Event) string {
+func (n *TelegramNotifier) formatMessage(event core.Event) string {
 	icon := severityIcon[event.Severity]
-	safeMsg := html.EscapeString(event.Message)
 	lines := []string{
-		fmt.Sprintf("%s <b>%s</b>", icon, html.EscapeString(event.Title)),
-		fmt.Sprintf("<code>%s</code>", safeMsg),
-		fmt.Sprintf("\U0001f4c5 %s", event.Timestamp.Format("2006-01-02 15:04:05")),
-		fmt.Sprintf("\U0001f3e0 %s", html.EscapeString(event.Source)),
+		fmt.Sprintf("%s <b>%s | %s</b>", icon, event.Severity, html.EscapeString(event.Title)),
+		html.EscapeString(event.Message),
+		"",
+		fmt.Sprintf("  Server    %s", n.hostname),
+		fmt.Sprintf("  Source    %s", html.EscapeString(event.Source)),
+		fmt.Sprintf("  Time      %s", event.Timestamp.Format("2006-01-02 15:04:05")),
+		"",
+		fmt.Sprintf("\u2014 PiDex v%s", core.Version),
 	}
 	var result string
 	for i, line := range lines {

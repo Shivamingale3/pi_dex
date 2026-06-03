@@ -45,21 +45,21 @@ func (p *TemperaturePoller) checkTemp() *core.Event {
 	case stateOK:
 		if value >= p.Warn {
 			p.state = stateWarn
-			return p.makeTempEvent("WARN", value)
+			return p.makeTempEvent(core.SeverityWarn, value)
 		}
 	case stateWarn:
 		if value >= p.Critical {
 			p.state = stateCritical
-			return p.makeTempEvent("CRITICAL", value)
+			return p.makeTempEvent(core.SeverityCritical, value)
 		}
 		if value < p.Warn {
 			p.state = stateOK
-			return p.makeTempEvent("RECOVERED", value)
+			return p.makeTempEvent(core.SeverityRecovered, value)
 		}
 	case stateCritical:
 		if value < p.Warn {
 			p.state = stateOK
-			return p.makeTempEvent("RECOVERED", value)
+			return p.makeTempEvent(core.SeverityRecovered, value)
 		}
 	}
 

@@ -62,21 +62,21 @@ func (p *BasePoller) check(readValue func() (float64, error)) *core.Event {
 	case stateOK:
 		if value >= p.Warn {
 			p.state = stateWarn
-			return makeEvent(p.source, "WARN", value, p.Warn, p.Critical)
+			return makeEvent(p.source, core.SeverityWarn, value, p.Warn, p.Critical)
 		}
 	case stateWarn:
 		if value >= p.Critical {
 			p.state = stateCritical
-			return makeEvent(p.source, "CRITICAL", value, p.Warn, p.Critical)
+			return makeEvent(p.source, core.SeverityCritical, value, p.Warn, p.Critical)
 		}
 		if value < p.Warn {
 			p.state = stateOK
-			return makeEvent(p.source, "RECOVERED", value, p.Warn, p.Critical)
+			return makeEvent(p.source, core.SeverityRecovered, value, p.Warn, p.Critical)
 		}
 	case stateCritical:
 		if value < p.Warn {
 			p.state = stateOK
-			return makeEvent(p.source, "RECOVERED", value, p.Warn, p.Critical)
+			return makeEvent(p.source, core.SeverityRecovered, value, p.Warn, p.Critical)
 		}
 	}
 
@@ -86,11 +86,11 @@ func (p *BasePoller) check(readValue func() (float64, error)) *core.Event {
 func makeEvent(source, severity string, value, warn, critical float64) *core.Event {
 	var title string
 	switch severity {
-	case "WARN":
+	case core.SeverityWarn:
 		title = fmt.Sprintf("%s Warn", source)
-	case "CRITICAL":
+	case core.SeverityCritical:
 		title = fmt.Sprintf("%s Critical", source)
-	case "RECOVERED":
+	case core.SeverityRecovered:
 		title = fmt.Sprintf("%s Recovered", source)
 	}
 

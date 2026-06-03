@@ -1,10 +1,10 @@
 package core
 
-const Version = "0.2.0"
+const Version = "1.1.0"
 
 const (
 	SeverityInfo      = "INFO"
-	SeverityWarn      = "WARN"
+	SeverityWarn      = "WARNING"
 	SeverityCritical  = "CRITICAL"
 	SeverityRecovered = "RECOVERED"
 )

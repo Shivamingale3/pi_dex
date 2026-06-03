@@ -96,6 +96,8 @@ func cmdRun() {
 		sources = append(sources, source.NewNetworkSource(bus))
 	}
 
+	sourceCount := len(sources)
+
 	for _, s := range sources {
 		go func(s source.Source) {
 			if err := s.Run(ctx); err != nil {
@@ -104,14 +106,14 @@ func cmdRun() {
 		}(s)
 	}
 
-	startPollers(ctx, bus, cfg)
+	pollerCount := startPollers(ctx, bus, cfg)
 
 	bus.Publish(core.Event{
 		Source:    core.SourceDaemon,
 		EventType: core.EventDaemonStart,
 		Severity:  core.SeverityInfo,
 		Title:     "PiDex Started",
-		Message:   fmt.Sprintf("PiDex v%s started", core.Version),
+		Message:   fmt.Sprintf("PiDex v%s started (%d sources, %d pollers)", core.Version, sourceCount, pollerCount),
 		Timestamp: time.Now(),
 	})
 
@@ -135,7 +137,7 @@ func cmdRun() {
 	log.Println("PiDex stopped")
 }
 
-func startPollers(ctx context.Context, bus *core.EventBus, cfg config.Config) {
+func startPollers(ctx context.Context, bus *core.EventBus, cfg config.Config) int {
 	if cfg.MonitorCPU {
 		p := poller.NewCpuPoller(bus, cfg.CPUInterval, cfg.CPUWarn, cfg.CPUCritical)
 		go p.Run(ctx)
@@ -155,4 +157,19 @@ func startPollers(ctx context.Context, bus *core.EventBus, cfg config.Config) {
 		p := poller.NewTemperaturePoller(bus, cfg.TempInterval, cfg.TempWarn, cfg.TempCritical)
 		go p.Run(ctx)
 	}
+
+	count := 0
+	if cfg.MonitorCPU {
+		count++
+	}
+	if cfg.MonitorRAM {
+		count++
+	}
+	if cfg.MonitorDisk {
+		count++
+	}
+	if cfg.MonitorTemperature {
+		count++
+	}
+	return count
 }
