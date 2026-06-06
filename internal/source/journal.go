@@ -75,9 +75,10 @@ func (s *JournalSource) Run(ctx context.Context) error {
 }
 
 var relevantComms = map[string]bool{
-	"sshd":    true,
-	"sudo":    true,
-	"systemd": true,
+	"sshd":         true,
+	"sshd-session": true,
+	"sudo":         true,
+	"systemd":      true,
 }
 
 func isRelevant(entry map[string]any) bool {

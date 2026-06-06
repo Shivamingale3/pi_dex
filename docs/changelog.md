@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.5 (2026-06-06)
+
+- Fix SSH parser: accept `sshd-session` in addition to `sshd`
+- Fix `isRelevant()` filter to let `sshd-session` through
+- Add DNS readiness wait before publishing DAEMON_START
+
 ## v1.2.4 (2026-06-06)
 
 - Fix `LoadConfig` to check env vars even when config.toml is unreadable

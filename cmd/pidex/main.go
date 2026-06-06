@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
@@ -48,6 +49,15 @@ func main() {
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
 		usage()
+	}
+}
+
+func waitForDNS() {
+	for i := 0; i < 10; i++ {
+		if _, err := net.LookupHost("api.telegram.org"); err == nil {
+			return
+		}
+		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -134,6 +144,8 @@ func cmdRun() {
 	}
 
 	pollerCount := startPollers(ctx, bus, cfg)
+
+	waitForDNS()
 
 	bus.Publish(core.Event{
 		Source:    core.SourceDaemon,
