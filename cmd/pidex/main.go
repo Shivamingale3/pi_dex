@@ -41,6 +41,9 @@ func main() {
 	case "uninstall":
 		requireRoot()
 		cmdUninstall()
+	case "update":
+		requireRoot()
+		cmdUpdate()
 	case "help":
 		usage()
 	default:
@@ -73,6 +76,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, "  setup      Interactive configuration wizard\n")
 	fmt.Fprintf(os.Stderr, "  test       Send a test notification\n")
 	fmt.Fprintf(os.Stderr, "  uninstall  Remove PiDex from the system\n")
+	fmt.Fprintf(os.Stderr, "  update     Update PiDex to the latest release\n")
 	fmt.Fprintf(os.Stderr, "  version    Show version\n")
 	fmt.Fprintf(os.Stderr, "  help       Show this help\n")
 	os.Exit(1)
