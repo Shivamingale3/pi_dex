@@ -5,12 +5,12 @@ Event-driven home server watchman. Listens for SSH logins, Docker events, system
 ## Quick Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Shivamingale3/pi_dex/main/deploy/install.sh | sudo env "PATH=$PATH" bash
+curl -sSL https://raw.githubusercontent.com/Shivamingale3/pi_dex/main/deploy/install.sh | sudo bash
 sudo pidex setup          # Interactive wizard
 sudo systemctl enable --now pidex
 ```
 
-**Prerequisites**: Go 1.22+ (for building), Debian 12 / Ubuntu 24.04+ / Raspberry Pi OS (64-bit), x86_64 or aarch64.
+**Prerequisites**: Debian 12 / Ubuntu 24.04+ / Raspberry Pi OS (64-bit), x86_64 or aarch64.
 
 ## Commands
 
