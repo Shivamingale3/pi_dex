@@ -68,6 +68,9 @@ if ! id -u "$USER" &>/dev/null; then
     echo "Created system user: $USER"
 fi
 
+usermod -aG adm,docker "$USER" 2>/dev/null || true
+echo "Added $USER to adm,docker groups"
+
 mkdir -p "$CONFIG_DIR"
 touch "$CONFIG_DIR/env"
 chmod 600 "$CONFIG_DIR/env"

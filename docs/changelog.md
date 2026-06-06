@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.2.2 (2026-06-06)
+
+- Add `ensureGroups()` to `pidex update` — auto-repairs `adm`/`docker` group membership
+- Install script adds `pidex` user to `adm` and `docker` groups
+
+## v1.2.1 (2026-06-06)
+
+- Fix cross-device rename on `pidex update` (temp file to `/usr/local/bin`)
+- Bump `core.Version` to 1.2.1
+
+## v1.2.0 (2026-06-06)
+
+- Add `pidex update` command for self-updates via GitHub releases
+- Rewrite install.sh to prefer pre-built binaries, fall back to Go build
+- Simplify README install instructions
+
 ## v1.1.1 (2026-06-03)
 
 - Add `requireRoot()` check to `run`, `setup`, `uninstall`, `test` (not dry-run)

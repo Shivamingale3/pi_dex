@@ -72,6 +72,8 @@ func cmdUpdate() {
 		}
 	}
 
+	ensureGroups()
+
 	fmt.Print("Restarting pidex service... ")
 	if err := exec.Command("systemctl", "restart", "pidex").Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "\nRestart failed: %v\n", err)
@@ -80,6 +82,10 @@ func cmdUpdate() {
 	fmt.Println("done")
 
 	fmt.Printf("\nUpdated to %s\n", rel.TagName)
+}
+
+func ensureGroups() {
+	exec.Command("usermod", "-aG", "adm,docker", "pidex").Run()
 }
 
 func downloadBinary(url, dest string) error {
