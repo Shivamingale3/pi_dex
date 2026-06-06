@@ -93,7 +93,7 @@ func downloadBinary(url, dest string) error {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 
-	tmp, err := os.CreateTemp("", "pidex-update-")
+	tmp, err := os.CreateTemp("/usr/local/bin", ".pidex-update-")
 	if err != nil {
 		return err
 	}
