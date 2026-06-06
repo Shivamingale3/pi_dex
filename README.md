@@ -5,7 +5,7 @@ Event-driven home server watchman. Listens for SSH logins, Docker events, system
 ## Quick Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Shivamingale3/pi_dex/main/deploy/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/Shivamingale3/pi_dex/main/deploy/install.sh | sudo env "PATH=$PATH" bash
 sudo pidex setup          # Interactive wizard
 sudo systemctl enable --now pidex
 ```
