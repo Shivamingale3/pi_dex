@@ -88,6 +88,10 @@ func ensureGroups() {
 	for _, g := range []string{"systemd-journal", "adm", "docker"} {
 		exec.Command("usermod", "-aG", g, "pidex").Run()
 	}
+	exec.Command("chown", "root:pidex", "/etc/pidex/env").Run()
+	exec.Command("chmod", "640", "/etc/pidex/env").Run()
+	exec.Command("chown", "root:pidex", "/etc/pidex/config.toml").Run()
+	exec.Command("chmod", "640", "/etc/pidex/config.toml").Run()
 }
 
 func downloadBinary(url, dest string) error {
