@@ -25,7 +25,6 @@ func main() {
 
 	switch os.Args[1] {
 	case "run":
-		requireRoot()
 		cmdRun()
 	case "version":
 		fmt.Printf("PiDex v%s\n", core.Version)

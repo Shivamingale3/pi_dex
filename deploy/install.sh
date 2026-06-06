@@ -68,8 +68,10 @@ if ! id -u "$USER" &>/dev/null; then
     echo "Created system user: $USER"
 fi
 
-usermod -aG adm,docker "$USER" 2>/dev/null || true
-echo "Added $USER to adm,docker groups"
+for g in systemd-journal adm docker; do
+    getent group "$g" &>/dev/null && usermod -aG "$g" "$USER" 2>/dev/null || true
+done
+echo "Added $USER to available groups"
 
 mkdir -p "$CONFIG_DIR"
 touch "$CONFIG_DIR/env"
