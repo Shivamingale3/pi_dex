@@ -39,7 +39,7 @@ func init() {
 func ParseSSH(entry map[string]any) *core.Event {
 	comm, _ := entry["_COMM"].(string)
 	ident, _ := entry["SYSLOG_IDENTIFIER"].(string)
-	if comm != "sshd" && ident != "sshd" {
+	if comm != "sshd" && comm != "sshd-session" && ident != "sshd" && ident != "sshd-session" {
 		return nil
 	}
 
