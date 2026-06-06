@@ -8,13 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"strconv"
-	"strings"
 
 	"github.com/leadows/pi_dex/internal/core"
 )
 
-const githubAPI = "https://api.github.com/repos/Shivamingale3/pi_dex/releases/latest"
+const githubReleases = "https://api.github.com/repos/Shivamingale3/pi_dex/releases/latest"
 
 type releaseResponse struct {
 	TagName string `json:"tag_name"`
@@ -23,7 +21,7 @@ type releaseResponse struct {
 func cmdUpdate() {
 	fmt.Print("Checking for updates... ")
 
-	resp, err := http.Get(githubAPI)
+	resp, err := http.Get(githubReleases)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "\nFailed to check for updates: %v\n", err)
 		os.Exit(1)
@@ -41,14 +39,13 @@ func cmdUpdate() {
 		os.Exit(1)
 	}
 
-	latest := strings.TrimPrefix(rel.TagName, "v")
-
-	if !isNewer(latest, core.Version) {
-		fmt.Printf("up to date (v%s)\n", core.Version)
+	latest := "v" + core.Version
+	if rel.TagName == latest {
+		fmt.Printf("up to date (%s)\n", latest)
 		return
 	}
 
-	fmt.Printf("v%s available (current: v%s)\n", latest, core.Version)
+	fmt.Printf("%s available (current: %s)\n", rel.TagName, latest)
 
 	arch := runtime.GOARCH
 	if arch != "amd64" && arch != "arm64" {
@@ -69,8 +66,8 @@ func cmdUpdate() {
 		url := fmt.Sprintf("https://github.com/Shivamingale3/pi_dex/releases/download/%s/%s", rel.TagName, filename)
 
 		fmt.Printf("Downloading %s...\n", filename)
-		if err := downloadFile(url, b.path); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to download %s: %v\n", b.name, err)
+		if err := downloadBinary(url, b.path); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed: %v\n", err)
 			os.Exit(1)
 		}
 	}
@@ -85,38 +82,10 @@ func cmdUpdate() {
 	fmt.Printf("\nUpdated to %s\n", rel.TagName)
 }
 
-func isNewer(a, b string) bool {
-	aParts := parseVersion(a)
-	bParts := parseVersion(b)
-
-	for i := range 3 {
-		if aParts[i] > bParts[i] {
-			return true
-		}
-		if aParts[i] < bParts[i] {
-			return false
-		}
-	}
-	return false
-}
-
-func parseVersion(v string) [3]int {
-	parts := strings.Split(v, ".")
-	var nums [3]int
-	for i, p := range parts {
-		if i >= 3 {
-			break
-		}
-		n, _ := strconv.Atoi(p)
-		nums[i] = n
-	}
-	return nums
-}
-
-func downloadFile(url, dest string) error {
+func downloadBinary(url, dest string) error {
 	resp, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("GET %s: %w", url, err)
+		return fmt.Errorf("download %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 
@@ -128,22 +97,22 @@ func downloadFile(url, dest string) error {
 	if err != nil {
 		return err
 	}
-	tmpPath := tmp.Name()
+	path := tmp.Name()
 
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
 		tmp.Close()
-		os.Remove(tmpPath)
+		os.Remove(path)
 		return err
 	}
 	tmp.Close()
 
-	if err := os.Chmod(tmpPath, 0755); err != nil {
-		os.Remove(tmpPath)
+	if err := os.Chmod(path, 0755); err != nil {
+		os.Remove(path)
 		return err
 	}
 
-	if err := os.Rename(tmpPath, dest); err != nil {
-		os.Remove(tmpPath)
+	if err := os.Rename(path, dest); err != nil {
+		os.Remove(path)
 		return err
 	}
 

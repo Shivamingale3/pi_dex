@@ -10,33 +10,58 @@ GROUP="pidex"
 
 echo "=== PiDex Installer ==="
 
-if ! command -v go &>/dev/null; then
-    echo "ERROR: Go is required to build PiDex."
-    echo "Install Go: https://go.dev/doc/install"
-    exit 1
+ARCH="unknown"
+case "$(uname -m)" in
+    x86_64)  ARCH="amd64" ;;
+    aarch64) ARCH="arm64" ;;
+esac
+
+# Try downloading pre-built binary
+installed=false
+
+echo "Finding latest release..."
+TAG=$(curl -sfL "https://api.github.com/repos/$REPO/releases/latest" \
+    | tr ',' '\n' | grep '"tag_name"' | cut -d'"' -f4)
+
+if [ -n "$TAG" ] && [ "$ARCH" != "unknown" ]; then
+    echo "Downloading PiDex $TAG (linux/$ARCH)..."
+
+    download_ok=true
+    for bin in pidex pidex-shutdown; do
+        url="https://github.com/$REPO/releases/download/$TAG/$bin-$TAG-linux-$ARCH"
+        if ! curl -sfLo "$INSTALL_DIR/$bin" "$url"; then
+            download_ok=false
+            break
+        fi
+        chmod 755 "$INSTALL_DIR/$bin"
+    done
+
+    if [ "$download_ok" = true ]; then
+        installed=true
+        echo "Installed: $INSTALL_DIR/pidex, $INSTALL_DIR/pidex-shutdown"
+    fi
 fi
 
-# Determine if running from a local checkout or from curl | bash
-if [ -f "$0" ] && [ -f "$(dirname "$0")/../go.mod" ]; then
-    # Local checkout — build from script location
-    SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-    cd "$SCRIPT_DIR"
-    CLEANUP=""
-else
-    # Piped / remote — clone to temp directory
+# Fall back to building from source
+if [ "$installed" = false ]; then
+    echo "Pre-built binary not available for this system."
+
+    if ! command -v go &>/dev/null; then
+        echo "ERROR: Go is required to build PiDex from source."
+        echo "Install Go: https://go.dev/doc/install"
+        exit 1
+    fi
+
     TMP_DIR="$(mktemp -d)"
     trap 'rm -rf "$TMP_DIR"' EXIT
-    echo "Downloading PiDex source..."
+    echo "Building from source..."
     git clone --depth 1 "https://github.com/$REPO.git" "$TMP_DIR"
     cd "$TMP_DIR"
-    CLEANUP="rm -rf $TMP_DIR"
+
+    go build -ldflags="-s -w" -o "$INSTALL_DIR/pidex" ./cmd/pidex
+    go build -ldflags="-s -w" -o "$INSTALL_DIR/pidex-shutdown" ./cmd/pidex-shutdown
+    echo "Installed: $INSTALL_DIR/pidex, $INSTALL_DIR/pidex-shutdown"
 fi
-
-echo "Building PiDex..."
-
-go build -ldflags="-s -w" -o "$INSTALL_DIR/pidex" ./cmd/pidex
-go build -ldflags="-s -w" -o "$INSTALL_DIR/pidex-shutdown" ./cmd/pidex-shutdown
-echo "Installed: $INSTALL_DIR/pidex, $INSTALL_DIR/pidex-shutdown"
 
 if ! id -u "$USER" &>/dev/null; then
     useradd --system --no-create-home --shell /usr/sbin/nologin "$USER"
