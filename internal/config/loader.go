@@ -41,17 +41,28 @@ func LoadConfig(path string) Config {
 		}
 	}
 
-	return DefaultConfig()
+	return defaultWithEnv()
 }
 
 func readConfig(path string) Config {
 	var data map[string]any
 	if _, err := toml.DecodeFile(path, &data); err != nil {
-		return DefaultConfig()
+		return defaultWithEnv()
 	}
 
 	envToken := os.Getenv("TELEGRAM_BOT_TOKEN")
 	envChatID := os.Getenv("TELEGRAM_CHAT_ID")
 
 	return ConfigFromMap(data, envToken, envChatID)
+}
+
+func defaultWithEnv() Config {
+	cfg := DefaultConfig()
+	if t := os.Getenv("TELEGRAM_BOT_TOKEN"); t != "" {
+		cfg.TelegramToken = t
+	}
+	if c := os.Getenv("TELEGRAM_CHAT_ID"); c != "" {
+		cfg.TelegramChatID = c
+	}
+	return cfg
 }

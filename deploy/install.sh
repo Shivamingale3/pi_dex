@@ -75,7 +75,8 @@ echo "Added $USER to available groups"
 
 mkdir -p "$CONFIG_DIR"
 touch "$CONFIG_DIR/env"
-chmod 600 "$CONFIG_DIR/env"
+chown root:"$USER" "$CONFIG_DIR/env"
+chmod 640 "$CONFIG_DIR/env"
 
 cat > "$CONFIG_DIR/config.toml" << 'CONFIG'
 [monitor]
@@ -114,6 +115,7 @@ temp_critical = 85
 [cooldowns]
 # Use defaults
 CONFIG
+chown root:"$USER" "$CONFIG_DIR/config.toml"
 chmod 640 "$CONFIG_DIR/config.toml"
 
 cat > "$SERVICE_DIR/pidex.service" << SERVICE

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.4 (2026-06-06)
+
+- Fix `LoadConfig` to check env vars even when config.toml is unreadable
+- Fix file permissions: install.sh sets `root:pidex` ownership on env and config.toml
+- `ensureGroups()` now repairs env/config.toml permissions on update
+
 ## v1.2.3 (2026-06-06)
 
 - Remove `requireRoot()` from `pidex run` — daemon runs as `pidex` user via systemd
