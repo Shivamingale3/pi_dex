@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2.3 (2026-06-06)
+
+- Remove `requireRoot()` from `pidex run` — daemon runs as `pidex` user via systemd
+- Fix `ensureGroups()` to add groups individually (comma list fails if any group missing)
+- Fix install.sh group assignment: add `systemd-journal`, `adm`, `docker` individually
+- `systemd-journal` group is required for journalctl access on Debian/Pi OS
+
 ## v1.2.2 (2026-06-06)
 
 - Add `ensureGroups()` to `pidex update` — auto-repairs `adm`/`docker` group membership

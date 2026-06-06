@@ -85,7 +85,9 @@ func cmdUpdate() {
 }
 
 func ensureGroups() {
-	exec.Command("usermod", "-aG", "adm,docker", "pidex").Run()
+	for _, g := range []string{"systemd-journal", "adm", "docker"} {
+		exec.Command("usermod", "-aG", g, "pidex").Run()
+	}
 }
 
 func downloadBinary(url, dest string) error {
