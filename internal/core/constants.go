@@ -1,6 +1,6 @@
 package core
 
-const Version = "1.3.2"
+const Version = "1.3.3"
 
 const (
 	SeverityInfo      = "INFO"

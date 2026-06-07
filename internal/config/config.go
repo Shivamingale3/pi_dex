@@ -52,6 +52,20 @@ type Config struct {
 	CustomServices []CustomServiceConfig
 }
 
+func asSlice(v any) ([]any, bool) {
+	if s, ok := v.([]any); ok {
+		return s, true
+	}
+	if s, ok := v.([]map[string]any); ok {
+		result := make([]any, len(s))
+		for i, m := range s {
+			result[i] = m
+		}
+		return result, true
+	}
+	return nil, false
+}
+
 func DefaultConfig() Config {
 	return Config{
 		CPUInterval:  core.DefaultCPUInterval,
@@ -285,7 +299,7 @@ func ConfigFromMap(data map[string]any, envToken, envChatID string) Config {
 		}
 	}
 
-	if cs, ok := data["custom_services"].([]any); ok {
+	if cs, ok := asSlice(data["custom_services"]); ok {
 		for _, svcRaw := range cs {
 			svcMap, ok := svcRaw.(map[string]any)
 			if !ok {
@@ -298,7 +312,7 @@ func ConfigFromMap(data map[string]any, envToken, envChatID string) Config {
 			if d, ok := svcMap["description"].(string); ok {
 				svc.Description = d
 			}
-			if evts, ok := svcMap["events"].([]any); ok {
+			if evts, ok := asSlice(svcMap["events"]); ok {
 				for _, evtRaw := range evts {
 					evtMap, ok := evtRaw.(map[string]any)
 					if !ok {
