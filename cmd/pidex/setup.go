@@ -46,6 +46,8 @@ func cmdSetup(cfg config.Config) {
 	}
 	os.Remove(testFile)
 
+	ensureCustomDir(cfgDir)
+
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
@@ -524,54 +526,7 @@ func resetDefaults(cfg config.Config, configPath, envPath string) config.Config 
 
 func manageCustomServices(cfg config.Config, configPath string) config.Config {
 	customDir := filepath.Join(filepath.Dir(configPath), "custom.d")
-
-	if err := os.MkdirAll(customDir, 0755); err != nil {
-		fmt.Printf("\x1b[31mCannot create %s: %v\x1b[0m\n", customDir, err)
-		return cfg
-	}
-
-	tmplPath := filepath.Join(customDir, "custom.toml.example")
-	tmplContent := `# PiDex Custom Service Template
-#
-# Drop your config in this directory then run:
-#   sudo pidex setup  ->  Manage custom services  ->  Register
-#
-# Fields:
-#   name         - systemd service name (without .service suffix)
-#   description  - optional, shown in setup menu
-#
-# Each event requires:
-#   name     - unique identifier (e.g. MYAPP_STARTED)
-#   pattern  - Go regex matched against journald MESSAGE
-#   severity - INFO | WARNING | CRITICAL | RECOVERED
-#   title    - Telegram notification headline
-#   message  - Telegram notification body
-
-name = "your-service"
-description = "What this service does"
-
-[[events]]
-name = "YOUR_SERVICE_STARTED"
-pattern = "server started"
-severity = "INFO"
-title = "Your Service Started"
-message = "Your service is now running"
-
-[[events]]
-name = "YOUR_SERVICE_ERROR"
-pattern = "(?i)(error|fatal|panic)"
-severity = "CRITICAL"
-title = "Your Service Error"
-message = "Your service reported an error"
-
-[[events]]
-name = "YOUR_SERVICE_STOPPED"
-pattern = "shutting down"
-severity = "WARNING"
-title = "Your Service Stopped"
-message = "Your service is shutting down"
-`
-	_ = os.WriteFile(tmplPath, []byte(tmplContent), 0644)
+	ensureCustomDir(filepath.Dir(configPath))
 
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -626,8 +581,8 @@ message = "Your service is shutting down"
 		fmt.Println()
 		if len(files) == 0 {
 			fmt.Println("  No .conf files found.")
-			fmt.Println("  Drop a config file in this directory following the template:")
-			fmt.Printf("    %s\n", tmplPath)
+			fmt.Println("  Drop a config file in this directory following the example:")
+			fmt.Printf("    %s/pidex.conf\n", customDir)
 			fmt.Println()
 			fmt.Print("  Press Enter to return: ")
 			scanner.Scan()
@@ -911,6 +866,33 @@ func validateCustomService(svc config.CustomServiceConfig) string {
 	}
 	return ""
 }
+
+func ensureCustomDir(cfgDir string) {
+	customDir := filepath.Join(cfgDir, "custom.d")
+	os.MkdirAll(customDir, 0755)
+	confPath := filepath.Join(customDir, "pidex.conf")
+	if _, err := os.Stat(confPath); os.IsNotExist(err) {
+		os.WriteFile(confPath, []byte(pidexConfContent), 0644)
+	}
+}
+
+const pidexConfContent = `# PiDex Custom Service Example
+#
+# Register this via: sudo pidex setup -> 10. Manage custom services -> Register
+# Then test with:    sudo pidex test --emit --service pidex --event PIDEX_RUNNING
+#
+# The PiDex daemon must be running to receive the notification.
+
+name = "pidex"
+description = "PiDex watchman daemon (systemd service)"
+
+[[events]]
+name = "PIDEX_RUNNING"
+pattern = "PiDex startup complete"
+severity = "INFO"
+title = "PiDex Running"
+message = "PiDex daemon is active and monitoring"
+`
 
 func saveConfig(path string, cfg config.Config) {
 	os.MkdirAll(filepath.Dir(path), 0755)

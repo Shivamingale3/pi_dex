@@ -73,6 +73,7 @@ func cmdUpdate() {
 	}
 
 	ensureGroups()
+	ensureCustomDir("/etc/pidex")
 
 	fmt.Print("Restarting pidex service... ")
 	if err := exec.Command("systemctl", "restart", "pidex").Run(); err != nil {

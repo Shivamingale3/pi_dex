@@ -34,7 +34,7 @@ func main() {
 		cfg := config.LoadConfig("")
 		cmdSetup(cfg)
 	case "test":
-		if len(os.Args) < 3 || !hasDryRun(os.Args) {
+		if len(os.Args) < 3 || (!hasDryRun(os.Args) && !hasFlag(os.Args, "--emit")) {
 			requireRoot()
 		}
 		cmdTest(os.Args[1:])
@@ -72,6 +72,15 @@ func requireRoot() {
 func hasDryRun(args []string) bool {
 	for _, a := range args {
 		if a == "--dry-run" {
+			return true
+		}
+	}
+	return false
+}
+
+func hasFlag(args []string, flag string) bool {
+	for _, a := range args {
+		if a == flag {
 			return true
 		}
 	}
