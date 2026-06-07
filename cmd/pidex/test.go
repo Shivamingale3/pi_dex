@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
 
 	"github.com/leadows/pi_dex/internal/config"
 	"github.com/leadows/pi_dex/internal/core"
@@ -10,9 +13,17 @@ import (
 )
 
 func cmdTest(args []string) {
+	if args[1] == "--emit" {
+		cmdTestEmit(args)
+		return
+	}
+
 	if len(args) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: pidex test <event> [--dry-run]")
-		fmt.Fprintln(os.Stderr, "Events: ssh-login, ssh-fail, sudo-used, docker-down, reboot")
+		fmt.Fprintln(os.Stderr, "       pidex test --emit --service <name> --event <name> [--message <text>] [--dry-run]")
+		fmt.Fprintln(os.Stderr)
+		fmt.Fprintln(os.Stderr, "Built-in events: ssh-login, ssh-fail, sudo-used, docker-down, reboot")
+		fmt.Fprintln(os.Stderr, "Use --emit to test custom service events via journald")
 		os.Exit(1)
 	}
 
@@ -85,4 +96,137 @@ func cmdTest(args []string) {
 		os.Exit(1)
 	}
 	fmt.Println("Sent.")
+}
+
+func cmdTestEmit(args []string) {
+	service := ""
+	eventName := ""
+	dryRun := false
+	message := ""
+
+	for i := 2; i < len(args); i++ {
+		switch args[i] {
+		case "--service":
+			if i+1 < len(args) {
+				service = args[i+1]
+				i++
+			}
+		case "--event":
+			if i+1 < len(args) {
+				eventName = args[i+1]
+				i++
+			}
+		case "--message":
+			if i+1 < len(args) {
+				message = args[i+1]
+				i++
+			}
+		case "--dry-run":
+			dryRun = true
+		}
+	}
+
+	if service == "" || eventName == "" {
+		fmt.Fprintln(os.Stderr, "Usage: pidex test --emit --service <name> --event <name> [--message <text>] [--dry-run]")
+		os.Exit(1)
+	}
+
+	cfg := config.LoadConfig("")
+	svc := findCustomService(cfg, service)
+	if svc == nil {
+		svc = findCustomServiceInStaging(service)
+	}
+	if svc == nil {
+		fmt.Fprintf(os.Stderr, "Service '%s' not found in registered services or staging directory\n", service)
+		os.Exit(1)
+	}
+
+	var evt *config.CustomEventConfig
+	for i := range svc.Events {
+		if svc.Events[i].Name == eventName {
+			evt = &svc.Events[i]
+			break
+		}
+	}
+	if evt == nil {
+		fmt.Fprintf(os.Stderr, "Event '%s' not found in service '%s'\n", eventName, service)
+		fmt.Fprintf(os.Stderr, "Available events:\n")
+		for _, e := range svc.Events {
+			fmt.Fprintf(os.Stderr, "  %s\n", e.Name)
+		}
+		os.Exit(1)
+	}
+
+	var emitMsg string
+	if message != "" {
+		emitMsg = message
+	} else {
+		emitMsg = generateMatchMessage(evt.Pattern)
+		if emitMsg == "" {
+			fmt.Fprintf(os.Stderr, "Cannot auto-generate message from pattern '%s'.\n", evt.Pattern)
+			fmt.Fprintf(os.Stderr, "Pattern has regex syntax — provide --message with a matching string.\n")
+			os.Exit(1)
+		}
+	}
+
+	if dryRun {
+		fmt.Printf("[DRY RUN] Would emit to journald: logger -t %s %q\n", service, emitMsg)
+		fmt.Printf("  Service: %s\n", service)
+		fmt.Printf("  Event:   %s\n", eventName)
+		fmt.Printf("  Pattern: %s\n", evt.Pattern)
+		return
+	}
+
+	cmd := exec.Command("logger", "-t", service, emitMsg)
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to write to journald: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Emitted to journald [%s]: %s\n", service, emitMsg)
+	fmt.Println("Make sure the PiDex daemon is running to receive the notification.")
+}
+
+func findCustomService(cfg config.Config, name string) *config.CustomServiceConfig {
+	for i := range cfg.CustomServices {
+		if cfg.CustomServices[i].Name == name {
+			return &cfg.CustomServices[i]
+		}
+	}
+	return nil
+}
+
+func findCustomServiceInStaging(name string) *config.CustomServiceConfig {
+	dirs := []string{
+		"/etc/pidex/custom.d",
+		filepath.Join(os.Getenv("HOME"), ".config/pidex/custom.d"),
+	}
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || filepath.Ext(e.Name()) != ".conf" {
+				continue
+			}
+			svc := parseCustomServiceFile(filepath.Join(dir, e.Name()))
+			if svc.Name == name {
+				return &svc
+			}
+		}
+	}
+	return nil
+}
+
+func generateMatchMessage(pattern string) string {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return ""
+	}
+	prefix, complete := re.LiteralPrefix()
+	if complete && prefix != "" {
+		return prefix
+	}
+	return ""
 }

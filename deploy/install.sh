@@ -74,9 +74,29 @@ done
 echo "Added $USER to available groups"
 
 mkdir -p "$CONFIG_DIR"
+mkdir -p "$CONFIG_DIR/custom.d"
 touch "$CONFIG_DIR/env"
 chown root:"$USER" "$CONFIG_DIR/env"
 chmod 640 "$CONFIG_DIR/env"
+
+cat > "$CONFIG_DIR/custom.d/pidex.conf" << 'CUSTOM'
+# PiDex Custom Service Example
+#
+# Register this via: sudo pidex setup -> 10. Manage custom services -> Register
+# Then test with:    sudo pidex test --emit --service pidex --event PIDEX_RUNNING
+#
+# The PiDex daemon must be running to receive the notification.
+
+name = "pidex"
+description = "PiDex watchman daemon (systemd service)"
+
+[[events]]
+name = "PIDEX_RUNNING"
+pattern = "PiDex startup complete"
+severity = "INFO"
+title = "PiDex Running"
+message = "PiDex daemon is active and monitoring"
+CUSTOM
 
 cat > "$CONFIG_DIR/config.toml" << 'CONFIG'
 [monitor]
