@@ -4,10 +4,14 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/leadows/pi_dex/internal/config"
 	"github.com/leadows/pi_dex/internal/core"
 	"github.com/leadows/pi_dex/internal/notifier"
@@ -63,8 +67,9 @@ func cmdSetup(cfg config.Config) {
 		fmt.Println("  7. Set cooldowns")
 		fmt.Println("  8. Send test notification")
 		fmt.Println("  9. Reset to defaults")
+		fmt.Println("  10. Manage custom services")
 		fmt.Println("  0. Save & exit")
-		fmt.Print("\nChoice [0-9]: ")
+		fmt.Print("\nChoice [0-10]: ")
 
 		if !scanner.Scan() {
 			break
@@ -93,8 +98,10 @@ func cmdSetup(cfg config.Config) {
 			sendTest(cfg)
 		case "9":
 			cfg = resetDefaults(cfg, configPath, envPath)
+		case "10":
+			cfg = manageCustomServices(cfg, configPath)
 		default:
-			fmt.Println("Enter 0-9")
+			fmt.Println("Enter 0-10")
 		}
 	}
 }
@@ -513,6 +520,396 @@ func resetDefaults(cfg config.Config, configPath, envPath string) config.Config 
 	os.Remove(envPath)
 	fmt.Println("\x1b[32mConfiguration reset to defaults.\x1b[0m")
 	return cfg
+}
+
+func manageCustomServices(cfg config.Config, configPath string) config.Config {
+	customDir := filepath.Join(filepath.Dir(configPath), "custom.d")
+
+	if err := os.MkdirAll(customDir, 0755); err != nil {
+		fmt.Printf("\x1b[31mCannot create %s: %v\x1b[0m\n", customDir, err)
+		return cfg
+	}
+
+	tmplPath := filepath.Join(customDir, "custom.toml.example")
+	tmplContent := `# PiDex Custom Service Template
+#
+# Drop your config in this directory then run:
+#   sudo pidex setup  ->  Manage custom services  ->  Register
+#
+# Fields:
+#   name         - systemd service name (without .service suffix)
+#   description  - optional, shown in setup menu
+#
+# Each event requires:
+#   name     - unique identifier (e.g. MYAPP_STARTED)
+#   pattern  - Go regex matched against journald MESSAGE
+#   severity - INFO | WARNING | CRITICAL | RECOVERED
+#   title    - Telegram notification headline
+#   message  - Telegram notification body
+
+name = "your-service"
+description = "What this service does"
+
+[[events]]
+name = "YOUR_SERVICE_STARTED"
+pattern = "server started"
+severity = "INFO"
+title = "Your Service Started"
+message = "Your service is now running"
+
+[[events]]
+name = "YOUR_SERVICE_ERROR"
+pattern = "(?i)(error|fatal|panic)"
+severity = "CRITICAL"
+title = "Your Service Error"
+message = "Your service reported an error"
+
+[[events]]
+name = "YOUR_SERVICE_STOPPED"
+pattern = "shutting down"
+severity = "WARNING"
+title = "Your Service Stopped"
+message = "Your service is shutting down"
+`
+	_ = os.WriteFile(tmplPath, []byte(tmplContent), 0644)
+
+	scanner := bufio.NewScanner(os.Stdin)
+
+	for {
+		entries, err := os.ReadDir(customDir)
+		if err != nil {
+			fmt.Printf("\x1b[31mCannot read %s: %v\x1b[0m\n", customDir, err)
+			return cfg
+		}
+
+		type entryInfo struct {
+			filePath    string
+			baseName    string
+			serviceName string
+			description string
+			status      string
+			parseErr    string
+		}
+
+		registered := make(map[string]bool)
+		for _, svc := range cfg.CustomServices {
+			registered[svc.Name] = true
+		}
+
+		var files []entryInfo
+		for _, e := range entries {
+			name := e.Name()
+			if e.IsDir() || !strings.HasSuffix(name, ".conf") {
+				continue
+			}
+			fp := filepath.Join(customDir, name)
+			svc := parseCustomServiceFile(fp)
+			info := entryInfo{
+				filePath:    fp,
+				baseName:    name,
+				serviceName: svc.Name,
+				description: svc.Description,
+			}
+			if svc.Name == "" {
+				info.status = "INVALID"
+				info.parseErr = svc.Description
+			} else if registered[svc.Name] {
+				info.status = "PENDING (update)"
+			} else {
+				info.status = "PENDING"
+			}
+			files = append(files, info)
+		}
+
+		fmt.Printf("\n\x1b[1mManage Custom Services\x1b[0m\n")
+		fmt.Printf("  Directory: %s\n", customDir)
+		fmt.Println()
+		if len(files) == 0 {
+			fmt.Println("  No .conf files found.")
+			fmt.Println("  Drop a config file in this directory following the template:")
+			fmt.Printf("    %s\n", tmplPath)
+			fmt.Println()
+			fmt.Print("  Press Enter to return: ")
+			scanner.Scan()
+			return cfg
+		}
+
+		for i, f := range files {
+			desc := ""
+			if f.description != "" {
+				desc = " — " + f.description
+			}
+			errMsg := ""
+			if f.parseErr != "" {
+				errMsg = fmt.Sprintf(" (\x1b[31m%s\x1b[0m)", f.parseErr)
+			}
+			fmt.Printf("  %d. %-25s [%s]%s%s\n", i+1, f.baseName, f.status, desc, errMsg)
+		}
+		fmt.Println("  0. Back")
+		fmt.Print("\nChoice [0-", len(files), "]: ")
+
+		if !scanner.Scan() {
+			return cfg
+		}
+		raw := strings.TrimSpace(scanner.Text())
+		if raw == "0" || raw == "" {
+			return cfg
+		}
+
+		idx, err := strconv.Atoi(raw)
+		if err != nil || idx < 1 || idx > len(files) {
+			continue
+		}
+		selected := files[idx-1]
+
+		cfg = customServiceDetail(cfg, selected, registered, customDir, configPath, scanner)
+	}
+}
+
+type customServiceRaw struct {
+	Name        string
+	Description string
+	Events      []customEventRaw
+}
+
+type customEventRaw struct {
+	Name     string
+	Pattern  string
+	Severity string
+	Title    string
+	Message  string
+}
+
+func parseCustomServiceFile(path string) config.CustomServiceConfig {
+	var raw customServiceRaw
+	if _, err := toml.DecodeFile(path, &raw); err != nil {
+		return config.CustomServiceConfig{Description: "TOML parse error: " + err.Error()}
+	}
+	svc := config.CustomServiceConfig{
+		Name:        raw.Name,
+		Description: raw.Description,
+	}
+	for _, e := range raw.Events {
+		svc.Events = append(svc.Events, config.CustomEventConfig{
+			Name:     e.Name,
+			Pattern:  e.Pattern,
+			Severity: e.Severity,
+			Title:    e.Title,
+			Message:  e.Message,
+		})
+	}
+	return svc
+}
+
+func customServiceDetail(
+	cfg config.Config,
+	info struct {
+		filePath    string
+		baseName    string
+		serviceName string
+		description string
+		status      string
+		parseErr    string
+	},
+	registered map[string]bool,
+	customDir string,
+	configPath string,
+	scanner *bufio.Scanner,
+) config.Config {
+	svc := parseCustomServiceFile(info.filePath)
+
+	fmt.Println()
+	fmt.Printf("\x1b[1m%s\x1b[0m\n", info.baseName)
+	if svc.Description != "" && !strings.HasPrefix(svc.Description, "TOML") {
+		fmt.Printf("  %s\n", svc.Description)
+	}
+	fmt.Println()
+
+	unitName := svc.Name + ".service"
+	systemdOk := true
+	if svc.Name != "" {
+		out, err := exec.Command("systemctl", "list-unit-files", unitName).Output()
+		if err != nil || !strings.Contains(string(out), unitName) {
+			systemdOk = false
+		}
+	}
+
+	if svc.Name != "" {
+		if systemdOk {
+			fmt.Printf("  Systemd unit: %s — \x1b[32mexists\x1b[0m\n", unitName)
+		} else {
+			fmt.Printf("  Systemd unit: %s — \x1b[31mNOT FOUND\x1b[0m\n", unitName)
+		}
+	} else {
+		fmt.Println("  Systemd unit: \x1b[31m(no name)\x1b[0m")
+	}
+
+	if registered[svc.Name] {
+		fmt.Println("  Status: \x1b[33mALREADY REGISTERED (will update)\x1b[0m")
+	}
+
+	if len(svc.Events) > 0 {
+		fmt.Println("\n  Events defined:")
+		for _, e := range svc.Events {
+			fmt.Printf("    %-25s %-8s  pattern: %q\n", e.Name, e.Severity, e.Pattern)
+		}
+	} else {
+		fmt.Println("\n  Events: \x1b[31m(none)\x1b[0m")
+	}
+
+	fmt.Println()
+	fmt.Println("  [R]egister  [T]est events  [D]elete file  [B]ack")
+	fmt.Print("  Choice: ")
+
+	if !scanner.Scan() {
+		return cfg
+	}
+	choice := strings.ToUpper(strings.TrimSpace(scanner.Text()))
+
+	switch choice {
+	case "R":
+		if err := validateCustomService(svc); err != "" {
+			fmt.Printf("\x1b[31mValidation failed: %s\x1b[0m\n", err)
+			fmt.Print("Press Enter to continue: ")
+			scanner.Scan()
+			return cfg
+		}
+		if !systemdOk {
+			fmt.Printf("\x1b[31mSystemd unit '%s' not found. Install the service first.\x1b[0m\n", unitName)
+			fmt.Print("Press Enter to continue: ")
+			scanner.Scan()
+			return cfg
+		}
+		if _, blocked := reservedServiceNames[svc.Name]; blocked {
+			fmt.Printf("\x1b[31m'%s' is a reserved name used by PiDex internals.\x1b[0m\n", svc.Name)
+			fmt.Print("Press Enter to continue: ")
+			scanner.Scan()
+			return cfg
+		}
+		replaced := false
+		for i, existing := range cfg.CustomServices {
+			if existing.Name == svc.Name {
+				cfg.CustomServices[i] = svc
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			cfg.CustomServices = append(cfg.CustomServices, svc)
+		}
+		saveConfig(configPath, cfg)
+		os.Remove(info.filePath)
+		fmt.Printf("\x1b[32mRegistered '%s' (%d events). File removed from custom.d.\x1b[0m\n", svc.Name, len(svc.Events))
+		fmt.Printf("\x1b[33mRestart the daemon to apply: sudo systemctl restart pidex\x1b[0m\n")
+		fmt.Print("Press Enter to continue: ")
+		scanner.Scan()
+
+	case "T":
+		if err := validateCustomService(svc); err != "" {
+			fmt.Printf("\x1b[31mValidation failed: %s\x1b[0m\n", err)
+			fmt.Print("Press Enter to continue: ")
+			scanner.Scan()
+			return cfg
+		}
+		token, chatID := readEnv(filepath.Join(filepath.Dir(configPath), "env"))
+		if token == "" {
+			token = cfg.TelegramToken
+		}
+		if chatID == "" {
+			chatID = cfg.TelegramChatID
+		}
+		if token == "" || chatID == "" {
+			fmt.Println("\x1b[31mNo Telegram credentials configured. Run option 2 first.\x1b[0m")
+			fmt.Print("Press Enter to continue: ")
+			scanner.Scan()
+			return cfg
+		}
+		n := notifier.NewTelegramNotifier(token, chatID)
+		fmt.Printf("\n  Sending %d test notifications via Telegram...\n", len(svc.Events))
+		for i, e := range svc.Events {
+			evt := core.Event{
+				Source:    svc.Name,
+				EventType: e.Name,
+				Severity:  e.Severity,
+				Title:     "[TEST] " + e.Title,
+				Message:   "[TEST] " + e.Message,
+			}
+			if err := n.Send(evt); err != nil {
+				fmt.Printf("    \x1b[31m✗ %s — %v\x1b[0m\n", e.Name, err)
+			} else {
+				fmt.Printf("    \x1b[32m✓ %s\x1b[0m\n", e.Name)
+				if i < len(svc.Events)-1 {
+					time.Sleep(500 * time.Millisecond)
+				}
+			}
+		}
+		fmt.Print("Press Enter to continue: ")
+		scanner.Scan()
+
+	case "D":
+		fmt.Printf("  Delete %s? [y/N]: ", info.baseName)
+		if scanner.Scan() {
+			if strings.ToLower(strings.TrimSpace(scanner.Text())) == "y" {
+				os.Remove(info.filePath)
+				fmt.Printf("\x1b[32mDeleted %s\x1b[0m\n", info.baseName)
+				fmt.Print("Press Enter to continue: ")
+				scanner.Scan()
+			}
+		}
+	}
+
+	return cfg
+}
+
+var reservedServiceNames = map[string]bool{
+	core.SourceSSH:         true,
+	core.SourcSudo:         true,
+	core.SourceDocker:      true,
+	core.SourceSystemd:     true,
+	core.SourceNetwork:     true,
+	core.SourceShutdown:    true,
+	core.SourceCPU:         true,
+	core.SourceRAM:         true,
+	core.SourceDisk:        true,
+	core.SourceTemperature: true,
+	core.SourceDaemon:      true,
+}
+
+var validSeverities = map[string]bool{
+	core.SeverityInfo:      true,
+	core.SeverityWarn:      true,
+	core.SeverityCritical:  true,
+	core.SeverityRecovered: true,
+}
+
+func validateCustomService(svc config.CustomServiceConfig) string {
+	if svc.Name == "" {
+		return "name is required"
+	}
+	if len(svc.Events) == 0 {
+		return "at least one [[events]] entry is required"
+	}
+	for i, e := range svc.Events {
+		if e.Name == "" {
+			return fmt.Sprintf("event %d: name is required", i+1)
+		}
+		if e.Pattern == "" {
+			return fmt.Sprintf("event %d '%s': pattern is required", i+1, e.Name)
+		}
+		if _, err := regexp.Compile(e.Pattern); err != nil {
+			return fmt.Sprintf("event %d '%s': invalid regex: %v", i+1, e.Name, err)
+		}
+		if !validSeverities[e.Severity] {
+			return fmt.Sprintf("event %d '%s': severity must be INFO, WARNING, CRITICAL, or RECOVERED", i+1, e.Name)
+		}
+		if e.Title == "" {
+			return fmt.Sprintf("event %d '%s': title is required", i+1, e.Name)
+		}
+		if e.Message == "" {
+			return fmt.Sprintf("event %d '%s': message is required", i+1, e.Name)
+		}
+	}
+	return ""
 }
 
 func saveConfig(path string, cfg config.Config) {

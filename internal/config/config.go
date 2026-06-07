@@ -2,6 +2,20 @@ package config
 
 import "github.com/leadows/pi_dex/internal/core"
 
+type CustomEventConfig struct {
+	Name     string
+	Pattern  string
+	Severity string
+	Title    string
+	Message  string
+}
+
+type CustomServiceConfig struct {
+	Name        string
+	Description string
+	Events      []CustomEventConfig
+}
+
 type Config struct {
 	TelegramToken  string
 	TelegramChatID string
@@ -34,6 +48,8 @@ type Config struct {
 	MonitorTemperature bool
 
 	CooldownOverrides map[string]float64
+
+	CustomServices []CustomServiceConfig
 }
 
 func DefaultConfig() Config {
@@ -119,6 +135,29 @@ func ConfigToMap(cfg Config) map[string]any {
 			cd[k] = v
 		}
 		m["cooldowns"] = cd
+	}
+
+	if len(cfg.CustomServices) > 0 {
+		svcs := make([]any, len(cfg.CustomServices))
+		for i, svc := range cfg.CustomServices {
+			sm := map[string]any{
+				"name":        svc.Name,
+				"description": svc.Description,
+			}
+			evts := make([]any, len(svc.Events))
+			for j, ev := range svc.Events {
+				evts[j] = map[string]any{
+					"name":     ev.Name,
+					"pattern":  ev.Pattern,
+					"severity": ev.Severity,
+					"title":    ev.Title,
+					"message":  ev.Message,
+				}
+			}
+			sm["events"] = evts
+			svcs[i] = sm
+		}
+		m["custom_services"] = svcs
 	}
 
 	return m
@@ -242,6 +281,50 @@ func ConfigFromMap(data map[string]any, envToken, envChatID string) Config {
 				cfg.CooldownOverrides[k] = val
 			case int64:
 				cfg.CooldownOverrides[k] = float64(val)
+			}
+		}
+	}
+
+	if cs, ok := data["custom_services"].([]any); ok {
+		for _, svcRaw := range cs {
+			svcMap, ok := svcRaw.(map[string]any)
+			if !ok {
+				continue
+			}
+			svc := CustomServiceConfig{}
+			if n, ok := svcMap["name"].(string); ok {
+				svc.Name = n
+			}
+			if d, ok := svcMap["description"].(string); ok {
+				svc.Description = d
+			}
+			if evts, ok := svcMap["events"].([]any); ok {
+				for _, evtRaw := range evts {
+					evtMap, ok := evtRaw.(map[string]any)
+					if !ok {
+						continue
+					}
+					evt := CustomEventConfig{}
+					if n, ok := evtMap["name"].(string); ok {
+						evt.Name = n
+					}
+					if p, ok := evtMap["pattern"].(string); ok {
+						evt.Pattern = p
+					}
+					if s, ok := evtMap["severity"].(string); ok {
+						evt.Severity = s
+					}
+					if t, ok := evtMap["title"].(string); ok {
+						evt.Title = t
+					}
+					if m, ok := evtMap["message"].(string); ok {
+						evt.Message = m
+					}
+					svc.Events = append(svc.Events, evt)
+				}
+			}
+			if svc.Name != "" && len(svc.Events) > 0 {
+				cfg.CustomServices = append(cfg.CustomServices, svc)
 			}
 		}
 	}
