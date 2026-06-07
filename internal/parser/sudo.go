@@ -3,7 +3,7 @@ package parser
 import (
 	"regexp"
 
-	"github.com/leadows/pi_dex/internal/core"
+	"github.com/Shivamingale3/pi_dex/internal/core"
 )
 
 var sudoRE = regexp.MustCompile(`^\s*(\S+)\s*:.*COMMAND=(.*)`)

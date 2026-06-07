@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/leadows/pi_dex/internal/core"
+	"github.com/Shivamingale3/pi_dex/internal/core"
 )
 
 const githubReleases = "https://api.github.com/repos/Shivamingale3/pi_dex/releases/latest"

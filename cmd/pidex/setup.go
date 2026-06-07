@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/leadows/pi_dex/internal/config"
-	"github.com/leadows/pi_dex/internal/core"
-	"github.com/leadows/pi_dex/internal/notifier"
+	"github.com/Shivamingale3/pi_dex/internal/config"
+	"github.com/Shivamingale3/pi_dex/internal/core"
+	"github.com/Shivamingale3/pi_dex/internal/notifier"
 )
 
 var defaultCooldowns = map[string]float64{
