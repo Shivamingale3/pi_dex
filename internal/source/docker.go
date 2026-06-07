@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leadows/pi_dex/internal/core"
+	"github.com/Shivamingale3/pi_dex/internal/core"
 )
 
 type DockerSource struct {

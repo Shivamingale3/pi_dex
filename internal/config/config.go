@@ -1,6 +1,6 @@
 package config
 
-import "github.com/leadows/pi_dex/internal/core"
+import "github.com/Shivamingale3/pi_dex/internal/core"
 
 type CustomEventConfig struct {
 	Name     string
