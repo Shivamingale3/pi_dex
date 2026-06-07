@@ -111,7 +111,7 @@ func cmdRun() {
 
 	var sources []source.Source
 
-	if cfg.MonitorSSH || cfg.MonitorSudo || cfg.MonitorSystemd {
+	if cfg.MonitorSSH || cfg.MonitorSudo || cfg.MonitorSystemd || len(cfg.CustomServices) > 0 {
 		journal := source.NewJournalSource(bus)
 		if cfg.MonitorSSH {
 			journal.Register(parser.ParseSSH)
@@ -121,6 +121,14 @@ func cmdRun() {
 		}
 		if cfg.MonitorSystemd {
 			journal.Register(parser.MakeSystemdParser(cfg.ServiceWatch))
+		}
+		if len(cfg.CustomServices) > 0 {
+			names := make([]string, len(cfg.CustomServices))
+			for i, svc := range cfg.CustomServices {
+				names[i] = svc.Name
+			}
+			journal.SetCustomNames(names)
+			journal.Register(parser.MakeCustomServiceParser(cfg.CustomServices))
 		}
 		sources = append(sources, journal)
 	}

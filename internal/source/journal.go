@@ -13,12 +13,20 @@ import (
 type JournalParser func(map[string]any) *core.Event
 
 type JournalSource struct {
-	bus     *core.EventBus
-	parsers []JournalParser
+	bus         *core.EventBus
+	parsers     []JournalParser
+	customNames map[string]bool
 }
 
 func NewJournalSource(bus *core.EventBus) *JournalSource {
 	return &JournalSource{bus: bus}
+}
+
+func (s *JournalSource) SetCustomNames(names []string) {
+	s.customNames = make(map[string]bool, len(names))
+	for _, n := range names {
+		s.customNames[n] = true
+	}
 }
 
 func (s *JournalSource) Register(p JournalParser) {
@@ -53,7 +61,7 @@ func (s *JournalSource) Run(ctx context.Context) error {
 			continue
 		}
 
-		if !isRelevant(entry) {
+		if !s.isRelevant(entry) {
 			continue
 		}
 
@@ -81,13 +89,16 @@ var relevantComms = map[string]bool{
 	"systemd":      true,
 }
 
-func isRelevant(entry map[string]any) bool {
+func (s *JournalSource) isRelevant(entry map[string]any) bool {
 	comm, _ := entry["_COMM"].(string)
 	if relevantComms[comm] {
 		return true
 	}
 	ident, _ := entry["SYSLOG_IDENTIFIER"].(string)
 	if relevantComms[ident] {
+		return true
+	}
+	if s.customNames[ident] {
 		return true
 	}
 	unit, _ := entry["_SYSTEMD_UNIT"].(string)
