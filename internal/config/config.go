@@ -25,13 +25,13 @@ type Config struct {
 	TempInterval int
 	DiskInterval int
 
-	CPUWarn     float64
-	CPUCritical float64
-	RAMWarn     float64
-	RAMCritical float64
-	DiskWarn    float64
+	CPUWarn      float64
+	CPUCritical  float64
+	RAMWarn      float64
+	RAMCritical  float64
+	DiskWarn     float64
 	DiskCritical float64
-	TempWarn    float64
+	TempWarn     float64
 	TempCritical float64
 
 	ServiceWatch   []string
@@ -50,6 +50,8 @@ type Config struct {
 	CooldownOverrides map[string]float64
 
 	CustomServices []CustomServiceConfig
+
+	HealthChecks []HealthCheckConfig
 }
 
 func asSlice(v any) ([]any, bool) {
@@ -73,13 +75,13 @@ func DefaultConfig() Config {
 		TempInterval: core.DefaultTempInterval,
 		DiskInterval: core.DefaultDiskInterval,
 
-		CPUWarn:     core.DefaultCPUWarn,
-		CPUCritical: core.DefaultCPUCritical,
-		RAMWarn:     core.DefaultRAMWarn,
-		RAMCritical: core.DefaultRAMCritical,
-		DiskWarn:    core.DefaultDiskWarn,
+		CPUWarn:      core.DefaultCPUWarn,
+		CPUCritical:  core.DefaultCPUCritical,
+		RAMWarn:      core.DefaultRAMWarn,
+		RAMCritical:  core.DefaultRAMCritical,
+		DiskWarn:     core.DefaultDiskWarn,
 		DiskCritical: core.DefaultDiskCritical,
-		TempWarn:    core.DefaultTempWarn,
+		TempWarn:     core.DefaultTempWarn,
 		TempCritical: core.DefaultTempCritical,
 
 		MonitorSSH:         true,
@@ -172,6 +174,14 @@ func ConfigToMap(cfg Config) map[string]any {
 			svcs[i] = sm
 		}
 		m["custom_services"] = svcs
+	}
+
+	if len(cfg.HealthChecks) > 0 {
+		checks := make([]map[string]any, len(cfg.HealthChecks))
+		for i, hc := range cfg.HealthChecks {
+			checks[i] = healthCheckToMap(hc)
+		}
+		m["health_checks"] = checks
 	}
 
 	return m
@@ -339,6 +349,14 @@ func ConfigFromMap(data map[string]any, envToken, envChatID string) Config {
 			}
 			if svc.Name != "" && len(svc.Events) > 0 {
 				cfg.CustomServices = append(cfg.CustomServices, svc)
+			}
+		}
+	}
+
+	if hcs, ok := asSlice(data["health_checks"]); ok {
+		for _, raw := range hcs {
+			if m, ok := raw.(map[string]any); ok {
+				cfg.HealthChecks = append(cfg.HealthChecks, healthCheckFromMap(m))
 			}
 		}
 	}

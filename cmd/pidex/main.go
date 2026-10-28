@@ -4,18 +4,20 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/Shivamingale3/pi_dex/internal/config"
 	"github.com/Shivamingale3/pi_dex/internal/core"
+	"github.com/Shivamingale3/pi_dex/internal/health"
 	"github.com/Shivamingale3/pi_dex/internal/notifier"
 	"github.com/Shivamingale3/pi_dex/internal/parser"
 	"github.com/Shivamingale3/pi_dex/internal/poller"
+	"github.com/Shivamingale3/pi_dex/internal/queue"
 	"github.com/Shivamingale3/pi_dex/internal/source"
 )
 
@@ -34,7 +36,7 @@ func main() {
 		cfg := config.LoadConfig("")
 		cmdSetup(cfg)
 	case "test":
-		if len(os.Args) < 3 || (!hasDryRun(os.Args) && !hasFlag(os.Args, "--emit")) {
+		if len(os.Args) < 3 || (!hasDryRun(os.Args) && !hasFlag(os.Args, "--emit") && !hasFlag(os.Args, "--health")) {
 			requireRoot()
 		}
 		cmdTest(os.Args[1:])
@@ -49,15 +51,6 @@ func main() {
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
 		usage()
-	}
-}
-
-func waitForDNS() {
-	for i := 0; i < 10; i++ {
-		if _, err := net.LookupHost("api.telegram.org"); err == nil {
-			return
-		}
-		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -100,23 +93,57 @@ func usage() {
 	os.Exit(1)
 }
 
+// queuePath is where undelivered notifications are persisted. systemd sets
+// STATE_DIRECTORY (StateDirectory=pidex -> /var/lib/pidex).
+func queuePath() string {
+	dir := os.Getenv("STATE_DIRECTORY")
+	if dir == "" {
+		dir = "/var/lib/pidex"
+	}
+	if i := strings.IndexByte(dir, ':'); i >= 0 {
+		dir = dir[:i]
+	}
+	return filepath.Join(dir, "queue.jsonl")
+}
+
 func cmdRun() {
 	cfg := config.LoadConfig("")
 
 	if cfg.TelegramToken == "" || cfg.TelegramChatID == "" {
 		log.Fatal("Telegram bot_token and chat_id required (config or TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID env)")
 	}
+	if err := config.ValidateHealthChecks(cfg.HealthChecks); err != nil {
+		log.Fatalf("Invalid config: %v", err)
+	}
+
+	q, err := queue.Open(queuePath(), queue.DefaultMax)
+	if err != nil {
+		log.Printf("queue: %v (continuing with %d loaded events)", err, q.Len())
+	}
+	if n := q.Len(); n > 0 {
+		log.Printf("queue: loaded %d undelivered notifications", n)
+	}
 
 	bus := core.NewEventBus(64)
 	tg := notifier.NewTelegramNotifier(cfg.TelegramToken, cfg.TelegramChatID)
+	qn := queue.NewNotifier(tg, q, notifier.IsPermanent)
 	cd := core.NewCooldownManager(cfg.CooldownOverrides)
 	dd := core.NewDedupManager()
-	disp := core.NewDispatcher(bus, tg, cd, dd)
+	disp := core.NewDispatcher(bus, qn, cd, dd)
 
+	// Sources stop first on shutdown; the dispatcher keeps running until the
+	// shutdown event has been delivered or queued.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	dispCtx, cancelDisp := context.WithCancel(context.Background())
+	defer cancelDisp()
 
-	go disp.Run(ctx)
+	dispDone := make(chan struct{})
+	go func() {
+		disp.Run(dispCtx)
+		close(dispDone)
+	}()
+	go qn.Run(ctx)
 
 	var sources []source.Source
 
@@ -162,14 +189,19 @@ func cmdRun() {
 
 	pollerCount := startPollers(ctx, bus, cfg)
 
-	waitForDNS()
+	if len(cfg.HealthChecks) > 0 {
+		go health.NewMonitor(bus, cfg.HealthChecks).Run(ctx)
+	}
 
+	// No network wait: if Telegram is unreachable this goes to the offline
+	// queue and is delivered later with a "Delayed" note.
 	bus.Publish(core.Event{
 		Source:    core.SourceDaemon,
 		EventType: core.EventDaemonStart,
 		Severity:  core.SeverityInfo,
 		Title:     "PiDex Started",
-		Message:   fmt.Sprintf("PiDex v%s started (%d sources, %d pollers)", core.Version, sourceCount, pollerCount),
+		Message: fmt.Sprintf("PiDex v%s started (%d sources, %d pollers, %d health checks)",
+			core.Version, sourceCount, pollerCount, len(cfg.HealthChecks)),
 		Timestamp: time.Now(),
 	})
 
@@ -177,6 +209,7 @@ func cmdRun() {
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 	<-sigCh
 
+	cancel()
 	bus.Publish(core.Event{
 		Source:    core.SourceShutdown,
 		EventType: core.EventShutdownStarted,
@@ -186,10 +219,16 @@ func cmdRun() {
 		Timestamp: time.Now(),
 	})
 
+	// Let the dispatcher finish the event it is on, then deliver (or persist
+	// to the queue) everything still buffered, including the event above.
 	time.Sleep(200 * time.Millisecond)
-	disp.Drain()
+	cancelDisp()
+	<-dispDone
+	disp.DrainPending()
 
-	cancel()
+	if n := q.Len(); n > 0 {
+		log.Printf("queue: %d notifications saved for delivery after restart", n)
+	}
 	log.Println("PiDex stopped")
 }
 

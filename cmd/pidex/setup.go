@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -70,8 +71,9 @@ func cmdSetup(cfg config.Config) {
 		fmt.Println("  8. Send test notification")
 		fmt.Println("  9. Reset to defaults")
 		fmt.Println("  10. Manage custom services")
+		fmt.Println("  11. Manage health checks")
 		fmt.Println("  0. Save & exit")
-		fmt.Print("\nChoice [0-10]: ")
+		fmt.Print("\nChoice [0-11]: ")
 
 		if !scanner.Scan() {
 			break
@@ -102,8 +104,10 @@ func cmdSetup(cfg config.Config) {
 			cfg = resetDefaults(cfg, configPath, envPath)
 		case "10":
 			cfg = manageCustomServices(cfg, configPath)
+		case "11":
+			cfg = manageHealthChecks(cfg, configPath, scanner)
 		default:
-			fmt.Println("Enter 0-10")
+			fmt.Println("Enter 0-11")
 		}
 	}
 }
@@ -208,6 +212,8 @@ func viewConfig(cfg config.Config, envPath string) {
 	} else {
 		fmt.Println("  (defaults)")
 	}
+
+	printHealthChecks(cfg.HealthChecks)
 }
 
 func fieldBool(cfg config.Config, name string) bool {
@@ -896,9 +902,18 @@ message = "PiDex daemon is active and monitoring"
 
 func saveConfig(path string, cfg config.Config) {
 	os.MkdirAll(filepath.Dir(path), 0755)
+	_, statErr := os.Stat(path)
 	if err := config.SaveConfig(path, cfg); err != nil {
 		fmt.Printf("\x1b[31mFailed to write %s: %v\x1b[0m\n", path, err)
 		return
+	}
+	// A newly created system config holds secrets: make it root:pidex 0640.
+	if os.IsNotExist(statErr) && path == "/etc/pidex/config.toml" {
+		if g, err := user.LookupGroup("pidex"); err == nil {
+			if gid, err := strconv.Atoi(g.Gid); err == nil {
+				os.Chown(path, 0, gid)
+			}
+		}
 	}
 	fmt.Printf("\x1b[32mWrote %s\x1b[0m\n", path)
 }

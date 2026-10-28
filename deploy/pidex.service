@@ -1,8 +1,10 @@
 [Unit]
 Description=PiDex - Home Server Watchman
 Documentation=https://github.com/Shivamingale3/pi_dex
-After=network-online.target docker.service
-Wants=network-online.target
+# No dependency on network-online.target, tailscaled.service or docker.service:
+# PiDex must start at boot even when the network is not ready. Notifications
+# that cannot be delivered yet are queued in /var/lib/pidex.
+After=network.target
 
 [Service]
 Type=simple
