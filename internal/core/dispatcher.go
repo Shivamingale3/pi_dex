@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"log"
-	"sync"
 )
 
 type Dispatcher struct {
@@ -11,7 +10,6 @@ type Dispatcher struct {
 	notifier  Notifier
 	cooldowns *CooldownManager
 	dedup     *DedupManager
-	inflight  sync.WaitGroup
 }
 
 func NewDispatcher(bus *EventBus, n Notifier, cd *CooldownManager, dd *DedupManager) *Dispatcher {
@@ -23,6 +21,8 @@ func NewDispatcher(bus *EventBus, n Notifier, cd *CooldownManager, dd *DedupMana
 	}
 }
 
+// Run processes events until ctx is cancelled. An event being processed when
+// ctx is cancelled is finished before Run returns.
 func (d *Dispatcher) Run(ctx context.Context) {
 	ch := d.bus.Subscribe()
 	for {
@@ -33,20 +33,31 @@ func (d *Dispatcher) Run(ctx context.Context) {
 			if !ok {
 				return
 			}
-			d.inflight.Add(1)
 			d.process(event)
-			d.inflight.Done()
 		}
 	}
 }
 
-func (d *Dispatcher) Drain() {
-	d.inflight.Wait()
+// DrainPending processes every event still buffered in the bus, then returns.
+// Call it after Run has returned, during shutdown.
+func (d *Dispatcher) DrainPending() {
+	ch := d.bus.Subscribe()
+	for {
+		select {
+		case event, ok := <-ch:
+			if !ok {
+				return
+			}
+			d.process(event)
+		default:
+			return
+		}
+	}
 }
 
 func (d *Dispatcher) process(event Event) {
 	if !d.cooldowns.IsAllowed(event) {
-		log.Printf("Cooldown active for %s, dropping", event.EventType)
+		log.Printf("Cooldown active for %s from %s, dropping", event.EventType, event.Source)
 		return
 	}
 

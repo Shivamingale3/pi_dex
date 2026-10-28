@@ -16,16 +16,16 @@ platform — no dashboards, no metrics storage, no graphs.
 Linux / Docker / Systemd
             │
             ▼
-     Event Sources
+  Event Sources, Pollers, Health Checks
             │
             ▼
         Event Bus
             │
             ▼
-       Dispatcher
+       Dispatcher (cooldown, dedup)
             │
             ▼
-      Notification
+     Offline Queue ── /var/lib/pidex/queue.jsonl
             │
             ▼
         Telegram
@@ -52,6 +52,8 @@ and deduplication, then forwards to notification backends.
 | RAM poller     | Read `/proc/meminfo` every interval | Sleep-based polling    |
 | Temp poller    | Read thermal zone every interval  | Sleep-based polling      |
 | Disk poller    | Read `statfs` every interval      | Sleep-based polling      |
+| Health check   | One per `[[health_checks]]` entry | Probe every interval     |
+| Queue flusher  | Retry queued notifications every 30s | HTTPS to Telegram     |
 
 ## Event Model
 
@@ -82,7 +84,29 @@ Responsibilities:
 1. Receive events from the bus
 2. Apply per-event-type cooldowns
 3. Deduplicate identical events (hash of source + event_type + title + message)
-4. Route to notification services
+4. Route to notification services (through the offline queue)
+
+## Offline Queue
+
+`internal/queue` wraps the Telegram notifier. A send that fails after its
+retries is appended to `/var/lib/pidex/queue.jsonl` instead of being lost.
+While the queue is non-empty, new events are queued behind it so order is
+preserved. A flusher retries every 30s, oldest first, and stops at the first
+failure. The file is rewritten atomically (temp file + rename), loaded on
+startup, capped at 500 entries, and dropped entries are reported once as
+`N alerts dropped while offline`. This is what lets PiDex start at boot
+without waiting for the network.
+
+## Health Checks
+
+`internal/health` runs each `[[health_checks]]` entry in its own goroutine.
+A small state machine (unknown, healthy, failing, down) emits one
+`HEALTH_DOWN` after `failures` consecutive failures and one
+`HEALTH_RECOVERED` on the next success. Events use `Source = health:<name>`
+so cooldown and dedup apply per check. On DOWN, a diagnosis is attached:
+the raw error, `systemctl show` for the unit, Docker state, whether the
+target IP exists on an interface, which address the port is listening on
+(`/proc/net/tcp{,6}`), and the last log lines.
 
 ## Directory Layout
 
@@ -114,6 +138,8 @@ pi_dex/
 │   │   ├── ram.go
 │   │   ├── disk.go
 │   │   └── temperature.go
+│   ├── health/                 # Active health checks + diagnosis
+│   ├── queue/                  # Persistent offline notification queue
 │   ├── notifier/               # Notification backends
 │   │   ├── notifier.go         # Notifier interface
 │   │   └── telegram.go         # Telegram sender

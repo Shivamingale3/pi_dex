@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,18 +10,24 @@ import (
 
 	"github.com/Shivamingale3/pi_dex/internal/config"
 	"github.com/Shivamingale3/pi_dex/internal/core"
+	"github.com/Shivamingale3/pi_dex/internal/health"
 	"github.com/Shivamingale3/pi_dex/internal/notifier"
 )
 
 func cmdTest(args []string) {
-	if args[1] == "--emit" {
+	if len(args) >= 2 && args[1] == "--emit" {
 		cmdTestEmit(args)
+		return
+	}
+	if len(args) >= 2 && args[1] == "--health" {
+		cmdTestHealth(args)
 		return
 	}
 
 	if len(args) < 2 {
 		fmt.Fprintln(os.Stderr, "Usage: pidex test <event> [--dry-run]")
 		fmt.Fprintln(os.Stderr, "       pidex test --emit --service <name> --event <name> [--message <text>] [--dry-run]")
+		fmt.Fprintln(os.Stderr, "       pidex test --health <name>")
 		fmt.Fprintln(os.Stderr)
 		fmt.Fprintln(os.Stderr, "Built-in events: ssh-login, ssh-fail, sudo-used, docker-down, reboot")
 		fmt.Fprintln(os.Stderr, "Use --emit to test custom service events via journald")
@@ -185,6 +192,50 @@ func cmdTestEmit(args []string) {
 
 	fmt.Printf("Emitted to journald [%s]: %s\n", service, emitMsg)
 	fmt.Println("Make sure the PiDex daemon is running to receive the notification.")
+}
+
+// cmdTestHealth runs one health check once and prints the result and
+// diagnosis. It never sends a Telegram message.
+func cmdTestHealth(args []string) {
+	if len(args) < 3 {
+		fmt.Fprintln(os.Stderr, "Usage: pidex test --health <name>")
+		os.Exit(1)
+	}
+	name := args[2]
+
+	cfg := config.LoadConfig("")
+	var hc *config.HealthCheckConfig
+	for i := range cfg.HealthChecks {
+		if cfg.HealthChecks[i].Name == name {
+			hc = &cfg.HealthChecks[i]
+			break
+		}
+	}
+	if hc == nil {
+		fmt.Fprintf(os.Stderr, "Health check '%s' not found.\n", name)
+		if len(cfg.HealthChecks) > 0 {
+			fmt.Fprintln(os.Stderr, "Configured checks:")
+			for _, c := range cfg.HealthChecks {
+				fmt.Fprintf(os.Stderr, "  %s\n", c.Name)
+			}
+		} else if os.Geteuid() != 0 {
+			fmt.Fprintln(os.Stderr, "No checks loaded; the config may not be readable by this user (try sudo).")
+		}
+		os.Exit(1)
+	}
+
+	if !printHealthResult(*hc) {
+		os.Exit(2)
+	}
+}
+
+// printHealthResult runs a check once and prints the outcome. It reports
+// whether the check was healthy.
+func printHealthResult(hc config.HealthCheckConfig) bool {
+	fmt.Printf("Running %s (%s)... ", hc.Name, health.Target(hc))
+	r := health.RunOnce(context.Background(), hc)
+	fmt.Print(r.String())
+	return r.Err == nil
 }
 
 func findCustomService(cfg config.Config, name string) *config.CustomServiceConfig {

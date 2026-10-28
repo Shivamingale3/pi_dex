@@ -75,6 +75,13 @@ func cmdUpdate() {
 	ensureGroups()
 	ensureCustomDir("/etc/pidex")
 
+	fmt.Print("Installing systemd units... ")
+	if err := installUnits(); err != nil {
+		fmt.Fprintf(os.Stderr, "\nFailed: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("done")
+
 	fmt.Print("Restarting pidex service... ")
 	if err := exec.Command("systemctl", "restart", "pidex").Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "\nRestart failed: %v\n", err)

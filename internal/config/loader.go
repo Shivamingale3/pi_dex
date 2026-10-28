@@ -7,8 +7,11 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// SaveConfig writes cfg as TOML. A new file is created with mode 0640 because
+// it may hold secrets (health check passwords and headers); an existing file
+// keeps its mode and owner.
 func SaveConfig(path string, cfg Config) error {
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0640)
 	if err != nil {
 		return err
 	}

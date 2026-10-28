@@ -52,3 +52,41 @@ TEMP_CRITICAL = 300
 DISK_WARN = 3600
 DISK_CRITICAL = 3600
 RAM_HIGH = 300
+
+# Health checks: each runs in its own goroutine on its own interval.
+# An alert (CRITICAL) fires after `failures` consecutive failures, with a
+# diagnosis and the last log lines; a RECOVERED alert fires when it passes again.
+#
+# Fields:
+#   name          unique, required
+#   type          http | tcp | redis | systemd | docker | command | interface
+#   address       http: full URL; tcp/redis: host:port
+#   unit          systemd unit (required for type systemd; else optional, for diagnosis + logs)
+#   container     docker container (required for type docker; else optional, for diagnosis + logs)
+#   interface     network interface (required for type interface; else optional, for diagnosis)
+#   interval      seconds between checks, default 30, minimum 5
+#   timeout       seconds, default 5
+#   failures      consecutive failures before alerting, default 3
+#   username      redis ACL user (optional)
+#   password      redis AUTH (optional)
+#   expect_status http only, default 200
+#   headers       http only, e.g. headers = { Authorization = "Bearer ..." }
+#   command       command only: run via /bin/sh -c, exit 0 = healthy
+#
+# password and headers are secrets: keep this file root:pidex mode 0640.
+# Manage checks with: sudo pidex setup -> 11. Manage health checks
+# Run one now with:   sudo pidex test --health <name>
+
+[[health_checks]]
+name = "tailscale-ip"
+type = "interface"
+interface = "tailscale0"
+interval = 30
+failures = 6          # 3 min grace at boot
+
+[[health_checks]]
+name = "redis-cache"
+type = "redis"
+address = "100.83.1.25:6379"
+unit = "redis-cache.service"
+interface = "tailscale0"

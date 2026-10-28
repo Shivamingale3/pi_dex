@@ -1,26 +1,30 @@
 package core
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
 
 var defaultCooldowns = map[string]float64{
-	EventSSHLogin:     CooldownSSHLogin,
-	EventSSHLogout:    CooldownSSHLogout,
+	EventSSHLogin:      CooldownSSHLogin,
+	EventSSHLogout:     CooldownSSHLogout,
 	EventSSHBruteforce: CooldownSSHBruteforce,
-	EventSudoUsed:     CooldownSudoUsed,
-	EventCPUHigh:      CooldownCPUHigh,
-	EventCPURecovered: CooldownCPURecovered,
-	EventTempWarn:     CooldownTempWarn,
-	EventTempCritical: CooldownTempCritical,
-	EventDiskWarn:     CooldownDiskWarn,
-	EventDiskCritical: CooldownDiskCritical,
-	EventRAMHigh:      CooldownRAMHigh,
+	EventSudoUsed:      CooldownSudoUsed,
+	EventCPUHigh:       CooldownCPUHigh,
+	EventCPURecovered:  CooldownCPURecovered,
+	EventTempWarn:      CooldownTempWarn,
+	EventTempCritical:  CooldownTempCritical,
+	EventDiskWarn:      CooldownDiskWarn,
+	EventDiskCritical:  CooldownDiskCritical,
+	EventRAMHigh:       CooldownRAMHigh,
 }
 
+// CooldownManager tracks cooldowns per (source, event type), so that e.g. two
+// health checks emitting HEALTH_DOWN do not suppress each other. Durations
+// are configured per event type.
 type CooldownManager struct {
-	mu         sync.Mutex
+	mu          sync.Mutex
 	cooledUntil map[string]time.Time
 	durations   map[string]time.Duration
 }
@@ -39,10 +43,14 @@ func NewCooldownManager(overrides map[string]float64) *CooldownManager {
 	}
 }
 
+func cooldownKey(event Event) string {
+	return event.Source + "|" + event.EventType
+}
+
 func (m *CooldownManager) IsAllowed(event Event) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	deadline, ok := m.cooledUntil[event.EventType]
+	deadline, ok := m.cooledUntil[cooldownKey(event)]
 	if !ok {
 		return true
 	}
@@ -56,7 +64,7 @@ func (m *CooldownManager) Record(event Event) {
 	if !ok || dur == 0 {
 		return
 	}
-	m.cooledUntil[event.EventType] = time.Now().Add(dur)
+	m.cooledUntil[cooldownKey(event)] = time.Now().Add(dur)
 }
 
 func (m *CooldownManager) UpdateDuration(eventType string, seconds float64) {
@@ -65,6 +73,10 @@ func (m *CooldownManager) UpdateDuration(eventType string, seconds float64) {
 	dur := time.Duration(seconds) * time.Second
 	m.durations[eventType] = dur
 	if seconds == 0 {
-		delete(m.cooledUntil, eventType)
+		for k := range m.cooledUntil {
+			if strings.HasSuffix(k, "|"+eventType) {
+				delete(m.cooledUntil, k)
+			}
+		}
 	}
 }

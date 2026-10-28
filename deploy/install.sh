@@ -68,6 +68,8 @@ if ! id -u "$USER" &>/dev/null; then
     echo "Created system user: $USER"
 fi
 
+# systemd-journal: read the journal (events, health check logs)
+# docker:          Docker socket (events, docker health checks, container logs)
 for g in systemd-journal adm docker; do
     getent group "$g" &>/dev/null && usermod -aG "$g" "$USER" 2>/dev/null || true
 done
@@ -98,6 +100,8 @@ title = "PiDex Running"
 message = "PiDex daemon is active and monitoring"
 CUSTOM
 
+# Never overwrite an existing config: it holds the owner's settings and secrets.
+if [ ! -f "$CONFIG_DIR/config.toml" ]; then
 cat > "$CONFIG_DIR/config.toml" << 'CONFIG'
 [monitor]
 ssh = true
@@ -134,16 +138,29 @@ temp_critical = 85
 
 [cooldowns]
 # Use defaults
+
+# Health checks: add with `sudo pidex setup` -> 11. Manage health checks.
+# Example:
+# [[health_checks]]
+# name = "tailscale-ip"
+# type = "interface"
+# interface = "tailscale0"
+# failures = 6
 CONFIG
-chown root:"$USER" "$CONFIG_DIR/config.toml"
+echo "Wrote default $CONFIG_DIR/config.toml"
+fi
+# config.toml may hold health check secrets (redis password, HTTP headers).
+chown root:"$GROUP" "$CONFIG_DIR/config.toml"
 chmod 640 "$CONFIG_DIR/config.toml"
 
 cat > "$SERVICE_DIR/pidex.service" << SERVICE
 [Unit]
 Description=PiDex - Home Server Watchman
 Documentation=https://github.com/$REPO
-After=network-online.target docker.service
-Wants=network-online.target
+# No dependency on network-online.target, tailscaled.service or docker.service:
+# PiDex must start at boot even when the network is not ready. Notifications
+# that cannot be delivered yet are queued in /var/lib/pidex.
+After=network.target
 
 [Service]
 Type=simple
